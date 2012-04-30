@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <canvas id="testCanvasElement" width="200" height="200" style="background: #cccccc;"></canvas>
+    <script>
+      var cv = document.getElementById("testCanvasElement");
+      var context = cv.getContext("2d");
+
+      // スタイルを指定
+      context.strokeStyle = "#000000;";
+      context.fillStyle   = "#000000;";
+      context.font        = "32px monospace";
+
+      // 中抜き描画
+      context.strokeText("ABCDEFG", 0, 40);
+
+      // 塗りつぶし描画
+      context.fillText("ABCDEFG", 0, 80);
+
+    </script>
+  </body>
+</html>
