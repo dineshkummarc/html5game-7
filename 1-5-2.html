@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <canvas id="testCanvasElement" width="300" height="200" style="background: #cccccc;"></canvas>
+    <script>
+      var cv = document.getElementById("testCanvasElement");
+      var context = cv.getContext("2d");
+      var str = "Aあ";
+
+      context.strokeStyle = "#404040;";
+
+      // 基準線を引く
+      context.beginPath();
+      context.moveTo(0, 40);
+      context.lineTo(399, 40);
+      context.closePath();
+      context.stroke();
+
+      // スタイルを指定
+      context.fillStyle   = "#000000;";
+      context.font        = "24px monospace";
+
+      // ベースライン設定なし
+      context.fillText(str, 0, 40);
+
+      str = "Bい";
+      // ベースラインにtopを指定
+      context.textBaseline = 'top';
+      context.fillText(str, 60, 40);
+
+      str = "Cう";
+      // ベースラインにmiddleを指定
+      context.textBaseline = 'middle';
+      context.fillText(str, 120,40);
+
+      str = "Dえ";
+      // ベースラインにbottomを指定
+      context.textBaseline = 'bottom';
+      context.fillText(str, 180, 40);
+
+    </script>
+  </body>
+</html>
