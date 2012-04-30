@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+</head>
+<body>
+  <canvas id="test_canvas" width="200" height="200" style="background: #ffff00;"></canvas>
+  <script>
+    var cv = document.getElementById("test_canvas");
+    var context = cv.getContext("2d");
+
+    // パス開始
+    context.beginPath();
+
+    // 三角形のパスを設定
+    context.moveTo(0, 0);
+    context.lineTo(100,50);
+    context.lineTo(0,100);
+
+    // パスを閉じる
+    context.closePath();
+
+    // 塗りつぶしスタイルを設定(白)
+    context.fillStyle = "#ffffff";
+
+    // パスの中を塗りつぶす
+    context.fill();
+
+    // 線スタイルを設定(青)
+    context.strokeStyle = "#0000ff;";
+
+    // パスにそって線をひく
+    context.stroke();
+  </script>
+</body>
+</html>
