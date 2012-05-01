@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<div>
+<p>地形チップ</p>
+<canvas id="chip0" width="32" height="32"></canvas>
+<canvas id="chip1" width="32" height="32"></canvas>
+<canvas id="chip2" width="32" height="32"></canvas>
+</div>
+
+<p>表示Canvas</p>
+
+<canvas id="viewCanvasElement" width="416" height="416"></canvas>
+
+<script>
+
+	// 地形チップサイズ設定
+	var chip_width = 32;
+	var chip_height = 32;
+
+	// マップサイズ設定
+	var map_cols = 20;
+	var map_rows = 13;
+
+	// 表示サイズ設定
+	var view_cols = 13;
+	var view_rows = 13;
+
+	var viewContext = document.getElementById("viewCanvasElement").getContext("2d");
+
+	var chipDataList = new Array();
+	var chipList = new Array();
+
+	var map = new Array();
+
+	var scroll_pos = 0;
+
+	// 地形チップ画像（ImageData）を保持する配列を作成
+	for (i = 0;i < 3;i++) {
+		chipDataList.push(viewContext.createImageData(chip_width, chip_height));
+	}
+
+	// チップ0（赤）のImageDataに色情報設定
+	for (i = 0;i < chip_width;i++) {
+		for (j = 0;j < chip_height;j++) {
+
+			// 赤成分
+			chipDataList[0].data[j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+			// 緑成分
+			chipDataList[0].data[1 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// 青成分
+			chipDataList[0].data[2 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// アルファ成分
+			chipDataList[0].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+		}
+	}
+
+	// チップ1（緑）のImageDataに色情報設定
+	for (i = 0;i < chip_width;i++) {
+		for (j = 0;j < chip_height;j++) {
+
+			// 赤成分
+			chipDataList[1].data[j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// 緑成分
+			chipDataList[1].data[1 + j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+			// 青成分
+			chipDataList[1].data[2 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// アルファ成分
+			chipDataList[1].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+		}
+	}
+
+	// チップ2（青）のImageDataに色情報設定
+	for (i = 0;i < chip_width;i++) {
+		for (j = 0;j < chip_height;j++) {
+
+			// 赤成分
+			chipDataList[2].data[j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// 緑成分
+			chipDataList[2].data[1 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// 青成分
+			chipDataList[2].data[2 + j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+			// アルファ成分
+			chipDataList[2].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+		}
+	}
+
+	// ImageDataの画像データをチップ画像（Canvas）に描画
+	for (i = 0;i < 3;i++) {
+
+		// 地形チップのcanvasを取得
+		chipList[i] = document.getElementById("chip" + i);
+
+		// canvasにImageDataを描画
+		chipList[i].getContext("2d").putImageData(chipDataList[i], 0, 0);
+
+	}
+
+	// マップデータを乱数で作成
+	for (i = 0;i < map_rows;i++) {
+		for (j = 0;j < map_cols;j++) {
+			map[j + i * map_cols] = Math.floor(Math.random() * 3);
+		}
+	}
+
+	// スクロール一初期化
+	var x = 0;
+
+	// スクロール描画開始
+	draw();
+
+	// スクロール描画関数
+	function draw() {
+
+		// スクロール位置を更新
+		--scroll_pos;
+
+		// スクロール位置がチップサイズに達したら、x位置を更新し新規スクロール
+		if (scroll_pos == -chip_width) {
+
+			x++;
+
+			scroll_pos = 0;
+
+		}
+
+		// Canvas上にマップの地形を描画
+		for (i = 0;i < view_rows;i++) {
+			for (j= 0;j < view_cols + 1;j++) {
+				viewContext.drawImage(chipList[map[(x + j)  + i * map_cols]], scroll_pos + j * chip_width, i * chip_height);
+			}
+		}
+
+		// 右端に達するまで処理を繰り返す
+		if (x < map_cols - view_cols - 1) {
+			setTimeout("draw()", 20);
+		}
+
+	}
+
+</script>
+
+</body>
+</html>

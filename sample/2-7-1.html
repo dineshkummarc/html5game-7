@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<canvas id="viewCanvasElement" width="200" height="200" style="background: #0000ff;"></canvas><button onclick="nextPage()">次ページ</button>
+
+<script>
+
+// 表示Canvasの描画用context取得
+var viewContext = document.getElementById("viewCanvasElement").getContext("2d");
+
+var text = "表示テスト文字列。<:br><:br>ウインドウ上に折り返しながら描画します。下端まで来ると、改ページ。<:br>各ページの文字列は、ページ配列内の行配列に格納されます。<:br>";
+
+// ウインドウの大きさ設定
+var win_width = 120;
+var win_height = 90;
+
+// ウインドウの描画位置設定
+var x = 40;
+var y = 40;
+
+// 選択肢文字列を描画するフォント
+var font = "14px monospace";
+
+// 一行の高さ
+line_height = 18;
+
+var page_lines = Math.floor(win_height / line_height);
+
+var line = '';
+var lineList = new Array();
+var pageList = new Array();
+
+// 現在ページ
+var page_index = 0;
+
+// 文字列処理位置
+var pos = 0;
+
+// ウインドウの横幅に合わせて各行のテキスト作成
+while (pos < text.length) {
+
+	// 文字列の描画幅がウインドウ幅を超えるまで現在行に文字追加
+	while (pos < text.length && viewContext.measureText(line + text.charAt(pos)).width < win_width) {
+
+		// 現在位置に<:br>タグがあれば改行し現在位置をタグの次の文字へ
+		if (text.indexOf('<:br>', pos) == pos) {
+
+			pos += 5;
+
+			// 現在行の処理を終了する
+			break;
+
+		}
+
+		// 現在行に現在位置の文字を追加
+		line = line + text.charAt(pos);
+
+		// 現在位置更新
+		pos++;
+
+	}
+
+	// 現在行の文字列を行配列に追加
+	lineList.push(line);
+
+	// 現在行の文字列を初期化
+	line = '';
+
+}
+
+var page_pos = 0;
+var line_pos = 0;
+
+var i;
+
+// 行配列をページ配列に格納
+while (line_pos < lineList.length) {
+
+	// 新ページ作成
+	pageList[page_pos] = new Array();
+
+	// ページ配列の現在ページに行配列の各行を追加
+	for (i = 0;(i < page_lines) && (line_pos < lineList.length);i++) {
+		pageList[page_pos][i] = lineList[line_pos++];
+	}
+
+	page_pos++;
+
+}
+
+draw();
+
+// メッセージ表示ダイアログ描画関数
+function draw() {
+
+	// ウインドウ領域全体を黒でクリア
+	viewContext.fillStyle = '#000000';
+	viewContext.fillRect(x, y, win_width, win_height);
+
+	// テキスト描画設定
+	viewContext.fillStyle = '#ffffff';
+	viewContext.textBaseline = 'top';
+
+	// 現在ページ内にある行配列の文字列を描画
+	for (i = 0;i < pageList[page_index].length;i++) {
+		viewContext.fillText(pageList[page_index][i], x, y + i * line_height);
+	}
+
+}
+
+// ページ送り
+function nextPage() {
+
+	// 現在ページが最終ページ未満なら、次ページへ
+	if (page_index < pageList.length - 1) {
+		page_index++;
+	}
+
+	// 再描画
+	draw();
+
+}
+
+</script>
+
+</body>
+</html>

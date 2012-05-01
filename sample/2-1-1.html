@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<p>表示用Canvas</p>
+
+<canvas id="viewCanvasElement" width="416" height="416"></canvas>
+
+<script>
+
+	// 地形チップサイズ
+	var chip_width = 32;
+	var chip_height = 32;
+
+	// 表示領域サイズ（地形チップ数）
+	var view_cols = 13;
+	var view_rows = 13;
+
+	var cv = document.getElementById("viewCanvasElement");
+	var viewContext = cv.getContext("2d");
+
+	var chipList = new Array();
+
+	// 地形チップ画像（ImageData）を保持する配列を作成
+	for (i = 0;i < 3;i++) {
+		chipList.push(viewContext.createImageData(chip_width, chip_height));
+	}
+
+	// チップ0（赤）のImageDataに色情報設定
+	for (i = 0;i < chip_width;i++) {
+		for (j = 0;j < chip_height;j++) {
+
+			// 赤成分
+			chipList[0].data[j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+			// 緑成分
+			chipList[0].data[1 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// 青成分
+			chipList[0].data[2 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// アルファ成分
+			chipList[0].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+		}
+	}
+
+	// チップ1（緑）のImageDataに色情報設定
+	for (i = 0;i < chip_width;i++) {
+		for (j = 0;j < chip_height;j++) {
+
+			// 赤成分
+			chipList[1].data[j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// 緑成分
+			chipList[1].data[1 + j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+			// 青成分
+			chipList[1].data[2 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// アルファ成分
+			chipList[1].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+		}
+	}
+
+	// チップ2（青）のImageDataに色情報設定
+	for (i = 0;i < chip_width;i++) {
+		for (j = 0;j < chip_height;j++) {
+
+			// 赤成分
+			chipList[2].data[j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// 緑成分
+			chipList[2].data[1 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+			// 青成分
+			chipList[2].data[2 + j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+			// アルファ成分
+			chipList[2].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+		}
+	}
+
+	// Canvas上に地形チップを並べて描画
+	for (i = 0;i < view_rows;i++) {
+		for (j= 0;j < view_cols;j++) {
+			viewContext.putImageData(chipList[Math.floor(Math.random() * 3)], j * chip_width, i * chip_height);
+		}
+	}
+
+</script>
+
+</body>
+</html>

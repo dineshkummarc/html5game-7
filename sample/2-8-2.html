@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body onkeydown="keyDownHandler(event)" onkeyup="keyUpHandler(event)">
+
+<canvas id="viewCanvasElement" width="200" height="200" style="background: #0000ff;">
+
+<script>
+
+var KEY_FLAG_NONE = 0;
+var KEY_FLAG_SELECT = 1;
+
+var key_flag = KEY_FLAG_NONE;
+
+// キー押下時の処理
+function keyDownHandler(e) {
+
+	// キー押下状態に応じてキーフラグ設定
+	switch (e.keyCode) {
+
+	case 13:
+
+		key_flag |= KEY_FLAG_SELECT;
+
+		break;
+
+	}
+
+}
+
+// キー解放時の処理
+function keyUpHandler(e) {
+
+	// キー解放状態に応じてキーフラグ設定
+	switch (e.keyCode) {
+
+	// 上キー
+	case 13:
+
+		key_flag &= ~KEY_FLAG_SELECT;
+
+		break;
+
+	}
+
+}
+
+// 表示Canvasの描画用context取得
+var viewContext = document.getElementById("viewCanvasElement").getContext("2d");
+
+var text = "表示テスト文字列。<:br><:br>ウインドウ上に折り返しながら描画します。下端まで来ると、改ページ。<:br>各ページの文字列は、<:page>ページ配列内の行配列に格納されます。<:br>";
+
+// ウインドウの描画位置設定（canvas内座標）
+var win_x = 40;
+var win_y = 40;
+
+// ウインドウの大きさ設定
+var win_width = 120;
+var win_height = 90;
+
+// 文字列描画領域の大きさ設定
+var content_width = win_width;
+var content_height = win_height - 16;
+
+// 選択肢文字列を描画するフォント
+var font = "14px monospace";
+
+// 一行の高さ
+line_height = 18;
+
+var page_lines = Math.floor(content_height / line_height);
+
+var line = '';
+var lineList = new Array();
+var pageList = new Array();
+
+// 現在ページ
+var page_index = 0;
+
+// 文字列処理位置
+var pos = 0;
+
+var page_flag;
+
+// ウインドウの横幅に合わせて各行のテキスト作成
+while (pos < text.length) {
+
+	// 改ページフラグリセット
+	page_flag = false;
+
+	// 文字列の描画幅がウインドウ幅を超えるまで現在行に文字追加
+	while (pos < text.length && viewContext.measureText(line + text.charAt(pos)).width < content_width) {
+
+		// 現在位置に<:br>タグがあれば改行し現在位置をタグの次の文字へ
+		if (text.indexOf('<:br>', pos) == pos) {
+
+			pos += 5;
+
+			// 現在行の処理を終了する
+			break;
+
+		}
+
+		// 現在位置に<:page>タグがあれば改ページ処理へ
+		if (text.indexOf('<:page>', pos) == pos) {
+
+			pos += 7;
+
+			// 改ページフラグセット
+			page_flag = true;
+
+			// 現在行の処理を終了する
+			break;
+
+		}
+
+		// 現在行に現在位置の文字を追加
+		line = line + text.charAt(pos);
+
+		// 現在位置更新
+		pos++;
+
+	}
+
+	// 現在行の文字列を行配列に追加
+	lineList.push(line);
+
+	// 改ページフラグがセットされていたら改ページ文字を挿入
+	if (page_flag) {
+		lineList.push("\f");
+	}
+
+	// 現在行の文字列を初期化
+	line = '';
+
+}
+
+// 逐次出力中の文字列位置
+var page_pos = 0;
+var line_pos = 0;
+
+var i;
+
+// 行配列をページ配列に格納
+while (line_pos < lineList.length) {
+
+	// 新ページ作成
+	pageList[page_pos] = new Array();
+
+	// ページ配列の現在ページに行配列の各行を追加
+	for (i = 0;(i < page_lines) && (line_pos < lineList.length);i++) {
+
+		// 改ページ文字判定
+		if (lineList[line_pos].charAt(0) == "\f") {
+
+			// 現在行位置を改ページ文字行の次へ
+			line_pos++;
+
+			// ページ先頭でなければ改ページ処理実行
+			if (i > 0) {
+
+				// 現在ページを終了し新規ページへ
+				break;
+
+			}
+
+		} else {
+
+			// ページ配列の現在位置に行配列の文字列をコピー
+			pageList[page_pos].push(lineList[line_pos++]);
+
+		}
+
+	}
+
+	page_pos++;
+
+}
+
+var PROCESS_STAGE_NONE = 0;
+var PROCESS_STAGE_PUTTING = 1;
+var PROCESS_STAGE_PAGE_WAIT = 2;
+var PROCESS_STAGE_PAGE_START = 3;
+var PROCESS_STAGE_PAGE_END = 4;
+var PROCESS_STAGE_PAGE_EXIT = 5;
+var PROCESS_STAGE_MESSAGE_EXIT = 6;
+var PROCESS_STAGE_EXIT = 7;
+
+// 現在の処理内容
+var process_stage = PROCESS_STAGE_PAGE_START;
+
+var putting_line = 0;
+var putting_pos = 0;
+
+// process実行回数カウンタ
+var process_count = 0;
+
+process_stage = PROCESS_STAGE_PAGE_START;
+
+// 処理開始
+process();
+
+// 定時処理
+function process() {
+
+	switch (process_stage) {
+
+	// ページ開始
+	case PROCESS_STAGE_PAGE_START:
+
+		// リターンキー解放待機後にページ表示処理開始
+		if ((key_flag & KEY_FLAG_SELECT) == 0) {
+
+			putting_line = 0;
+			putting_pos = 0;
+
+			process_stage = PROCESS_STAGE_PUTTING;
+
+		}
+
+		break;
+
+	// ページ表示完了
+	case PROCESS_STAGE_PAGE_END:
+
+		// リターンキー解放待機後にページ／メッセージ終了処理へ
+		if ((key_flag & KEY_FLAG_SELECT) == 0) {
+			if (page_index < pageList.length - 1) {
+				process_stage = PROCESS_STAGE_PAGE_EXIT;
+			} else {
+				process_stage = PROCESS_STAGE_MESSAGE_EXIT;
+			}
+		}
+
+		break;
+
+	// ページ終了処理
+	case PROCESS_STAGE_PAGE_EXIT:
+
+		// リターンキーが押されていたら、次ページ開始
+		if ((key_flag & KEY_FLAG_SELECT) != 0) {
+
+			page_index++;
+
+			process_stage = PROCESS_STAGE_PAGE_START;
+
+		}
+
+		break;
+
+	// メッセージ（全ページ）終了処理
+	case PROCESS_STAGE_MESSAGE_EXIT:
+
+		// リターンキーが押されていたら、終了状態へ
+		if ((key_flag & KEY_FLAG_SELECT) != 0) {
+			process_stage = PROCESS_STAGE_EXIT;
+		}
+
+		break;
+
+	// ページ文字列逐次出力中
+	case PROCESS_STAGE_PUTTING:
+
+		// 表示位置更新
+		putting_pos++;
+
+		// 一行の表示終了
+		if (putting_pos >= pageList[page_index][putting_line].length) {
+
+			// ページ全行の表示完了ならページ終了
+			if (putting_line == pageList[page_index].length - 1) {
+				process_stage = PROCESS_STAGE_PAGE_END;
+			} else {
+
+				// 次の行へ
+				putting_line++;
+				putting_pos = 0;
+
+			}
+
+		}
+
+		// リターンキーが押されていたらページ全表示
+		if (process_stage == PROCESS_STAGE_PUTTING && (key_flag & KEY_FLAG_SELECT) != 0) {
+			process_stage = PROCESS_STAGE_PAGE_END;
+		}
+
+		break;
+
+	}
+
+	draw();
+
+	process_count++;
+
+	// 50ms後に再びprocess()実行
+	setTimeout("process()", 50);
+
+}
+
+// メッセージ表示ダイアログ描画関数
+function draw() {
+
+	// ウインドウ領域全体を黒でクリア
+	viewContext.fillStyle = '#000000';
+	viewContext.fillRect(win_x, win_y, win_width, win_height);
+
+	// テキスト描画設定
+	viewContext.fillStyle = '#ffffff';
+	viewContext.textBaseline = 'top';
+
+	switch (process_stage) {
+
+	// ページ文字列逐次出力中
+	case PROCESS_STAGE_PUTTING:
+
+		// 現在行の前まで一気に出力
+		for (i = 0;i < putting_line;i++) {
+			viewContext.fillText(pageList[page_index][i], win_x, win_y + i * line_height);
+		}
+
+		// 現在表示中の行の文字列を表示位置の文字まで描画
+		viewContext.fillText(pageList[page_index][putting_line].substring(0, putting_pos), win_x, win_y + i * line_height);
+
+		break;
+
+	// ページ全体表示中
+	case PROCESS_STAGE_PAGE_END:
+	case PROCESS_STAGE_PAGE_EXIT:
+	case PROCESS_STAGE_MESSAGE_EXIT:
+
+		// 現在ページ内にある行配列の文字列を描画
+		for (i = 0;i < pageList[page_index].length;i++) {
+			viewContext.fillText(pageList[page_index][i], win_x, win_y + i * line_height);
+		}
+
+		break;
+
+	}
+
+	// 文字列描画領域のX方向中心座標を算出
+	var content_center_x = win_x + (content_width / 2);
+
+	// 次ページ待機中なら、次ページマーカーを点滅表示
+	if (process_stage == PROCESS_STAGE_PAGE_EXIT && (process_count % 10) < 5) {
+
+		viewContext.beginPath();
+
+		// ウインドウ下部に三角形のパスを設定
+		viewContext.moveTo(content_center_x - 6, win_y + win_height - 12);
+		viewContext.lineTo(content_center_x + 6, win_y + win_height - 12);
+		viewContext.lineTo(content_center_x, win_y + win_height);
+
+		viewContext.closePath();
+
+		viewContext.fillStyle = '#ffffff';
+
+		// 設定したパスを塗りつぶす
+		viewContext.fill();
+
+	}
+
+}
+
+</script>
+
+</body>
+</html>

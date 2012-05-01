@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<p><textarea id="scriptArea" rows="8" cols="60"></textarea>
+<button onclick="test()">スクリプト実行</button></p>
+
+<p>実行結果<br>
+<textarea id="resultView" rows="8" cols="60"></textarea></p>
+
+<script>
+
+// 変数を格納する配列
+var varList;
+
+var script_pos;
+
+function test() {
+
+	varList = new Array(100);
+
+	script_pos = 0;
+
+	// スクリプト文字列取得
+	var script = document.getElementById("scriptArea").value;
+
+	// 改行を\nに統一
+	script = script.replace("\r\n", "\n");
+	script = script.replace("\r", "\n");
+
+	// 各行を配列に格納
+	var lines = script.split("\n");
+	var scriptList = new Array();
+
+	var i;
+	var result = "";
+
+	// 各行をスクリプト関数として解析し、スクリプトオブジェクトを配列に格納
+	for (i = 0;i < lines.length;i++) {
+
+		// 行頭と行末の空白・改行文字削除
+		lines[i] = trim(lines[i]);
+
+		if (lines[i] != null) {
+			scriptList.push(parseFunction(lines[i]));
+		}
+
+	}
+
+	var if_level;
+
+	while (script_pos < scriptList.length) {
+
+		// if()なら条件判定を行って分岐処理
+		if (scriptList[script_pos].name == "if") {
+
+			// 条件が成立しなければendif()まで読み飛ばす
+			if (!getBoolValue(scriptList[script_pos].args[0])) {
+
+				// if()深さカウンタ設定
+				if_level = 1;
+
+				// 現在のif()が終わるかelse文までループ
+				while (if_level > 0) {
+
+					script_pos++;
+
+					// if()が出てきたら深さ加算
+					if (scriptList[script_pos].name == "if") {
+						if_level++;
+					}
+
+					// endif()が出てきたら深さ減算
+					if (scriptList[script_pos].name == "endif") {
+						if_level--;
+					}
+
+					// if()直下にelseが出てきたら終了
+					if (if_level == 1 && scriptList[script_pos].name == "else") {
+						if_level = 0;
+					}
+
+				}
+
+			}
+
+		} else {
+
+			// elseなら対応するendifまで移動
+			if (scriptList[script_pos].name == "else") {
+
+				// if()深さカウンタ設定
+				if_level = 1;
+
+				// 現在のif()が終わるかelse文までループ
+				while (if_level > 0) {
+
+					script_pos++;
+
+					// if()が出てきたら深さ加算
+					if (scriptList[script_pos].name == "if") {
+						if_level++;
+					}
+
+					// endif()が出てきたら深さ減算
+					if (scriptList[script_pos].name == "endif") {
+						if_level--;
+					}
+
+				}
+
+			}
+
+		}
+
+		// 現在位置のスクリプトを実行し、結果を表示文字列に追加
+		result += scriptList[script_pos].script + ":" + execFunction(scriptList[script_pos]) + "\n";
+
+		script_pos++;
+
+	}
+
+	document.getElementById("resultView").value = result;
+
+}
+
+// 指定文字列の先頭と末尾にある空白文字を削除した文字列を返す
+function trim(str) {
+
+	if (str == null || str.length < 1) {
+		return null;
+	}
+
+	var result;
+
+	var start_index = 0;
+	var last_index = str.length - 1;
+
+	// 行頭から空白文字でない文字が出てくる位置を検索
+	while (start_index < str.length && (str.charAt(start_index) == ' ' || str.charAt(start_index) == "\t" || str.charAt(start_index) == "\r"  || str.charAt(start_index) == "\n")) {
+		start_index++;
+	}
+
+	// 空白文字のみの文字列ならnullを返す
+	if (start_index == str.length) {
+		return null;
+	}
+
+	// 行末から空白文字でない文字が出てくる位置を検索
+	while (last_index >= 0 && (str.charAt(last_index) == ' ' || str.charAt(last_index) == "\t" || str.charAt(last_index) == "\r"  || str.charAt(last_index) == "\n")) {
+		last_index--;
+	}
+
+	return str.substring(start_index, last_index + 1);
+
+}
+
+function isString(arg) {
+
+	var i;
+
+	// 空文字列なら偽
+	if (arg == null || arg.length < 1) {
+		return false;
+	}
+
+	// 最初と最後が"でなければ偽
+	if (arg.charAt(0) != '"' || arg.charAt(arg.length - 1) != '"') {
+		return false;
+	}
+
+	// 途中に"が出てきたら偽
+	for (i = 1;i < arg.length - 1;i++) {
+		if (arg.charAt(i) == '"') {
+			return false;
+		}
+	}
+
+	// 最後まで条件違反がなければ真
+	return true;
+
+}
+
+// 文字列が数字か検査
+function isNum(arg) {
+
+	var i;
+
+	// 空文字列なら偽
+	if (arg == null || arg.length < 1) {
+		return false;
+	}
+
+	str = new String(arg);
+
+	if (arg == null || arg.length < 1) {
+		return false;
+	}
+
+	// 0-9以外の文字が出てきたら偽
+	for (i = 0;i < str.length;i++) {
+		if (str.charAt(i) < '0' || str.charAt(i) > '9') {
+			return false;
+		}
+	}
+
+	// 最後まで条件違反がなければ真
+	return true;
+
+}
+
+// 渡された文字列をスクリプトで評価可能な値として評価
+function getValue(str) {
+
+	// 数字からなる文字列なら数値化して返す
+	if (isNum(str)) {
+		return parseInt(str);
+	}
+
+	// スクリプト関数として実行しその値を返す
+	return execFunction(parseFunction(str));
+
+}
+
+// 渡された文字列をスクリプトで評価可能な真偽値として評価
+function getBoolValue(str) {
+
+	var func = parseFunction(str);
+
+	// 文字列が真偽値を返すスクリプト関数ならその実行結果を返す
+	if (func.name == "eq" || func.name == "ne") {
+		return execFunction(func);
+	}
+
+	return undefined;
+
+}
+
+// 文字列をスクリプト関数として解析し、スクリプトオブジェクトを返す
+function parseFunction(str) {
+
+	// 文字列内で(の次（引数の最初）の位置を取得
+	var arg_start_index = str.indexOf("(") + 1;
+
+	var result = new Object();
+
+	// 関数名を設定
+	result.name = str.substring(0, arg_start_index - 1);
+
+	// 引数の文字列を取得
+	var func_arg = str.substring(arg_start_index, str.length - 1);
+
+	// 引数を切り分け引数配列を作成
+	result.args = getArgList(func_arg);
+
+	// 文字列を保存
+	result.script = str;
+
+	return result;
+
+}
+
+// スクリプトオブジェクトを実行・評価し、その値を返す
+function execFunction(func) {
+
+	var i;
+	var sum = 0;
+	var str = '';
+	var val;
+	var val1, val2;
+
+	// sum()関数
+	if (func.name == 'sum') {
+
+		// 引数を数値として加算していく
+		for (i = 0;i < func.args.length;i++) {
+
+			sum += getValue(func.args[i]);
+
+		}
+
+		// 加算結果を返す
+		return sum;
+
+	}
+
+	// setVar()関数
+	if (func.name == 'setVar') {
+
+		if (func.args.length == 2) {
+
+			// 変数番号を取得
+			i = getValue(func.args[0]);
+
+			// 代入値を取得
+			val = getValue(func.args[1]);
+
+			// 変数番号が有効なら代入を実行し、その値を返す
+			if (i >= 0 && i <= 99) {
+
+				varList[i] = val;
+
+				return val;
+
+			}
+
+		}
+
+	}
+
+	// getVar()関数
+	if (func.name == 'getVar') {
+
+		if (func.args.length == 1) {
+
+			// 変数番号を取得
+			i = getValue(func.args[0]);
+
+			// 変数番号が有効なら対応する変数の値を返す
+			if (i >= 0 && i <= 99) {
+				return varList[i];
+			}
+
+		}
+
+	}
+
+	// eq()関数
+	if (func.name == 'eq') {
+
+		if (func.args.length == 2) {
+
+			// 引数を値として評価
+			val1 = getValue(func.args[0]);
+			val2 = getValue(func.args[1]);
+
+			// 等しければtrue、等しくなければfalseを返す
+			if (val1 == val2) {
+				return true;
+			} else {
+				return false;
+			}
+
+		}
+
+	}
+
+	// ne()関数
+	if (func.name == 'ne') {
+
+		if (func.args.length == 2) {
+
+			// 引数を値として評価
+			val1 = getValue(func.args[0]);
+			val2 = getValue(func.args[1]);
+
+			// 等しくなればtrue、等しければfalseを返す
+			if (val1 != val2) {
+				return true;
+			} else {
+				return false;
+			}
+
+		}
+
+	}
+
+	// message()関数
+	if (func.name == 'message') {
+
+		// 引数は単一の文字列のみ有効
+		if (func.args.length == 1 && isString(func.args[0])) {
+
+			// ""を削除し中身の文字列を取得
+			str = func.args[0].substring(1, func.args[0].length - 1);
+
+			// メッセージダイアログを出す
+			alert(str);
+
+			// メッセージ文字列を値とする
+			return str;
+
+		}
+
+	}
+
+	return undefined;
+
+}
+
+// 引数分離処理
+function getArgList(text) {
+
+	var arg_level = 0;
+	var quote_flag = false;
+
+	var arg_item = '';
+
+	var c;
+	var i;
+
+	var result = new Array();
+
+	// 引数文字列から個々の引数を切り出す
+	for (i = 0;i < text.length;i++) {
+
+		// 現在位置の文字を取得
+		c = text.charAt(i);
+
+		// 引用符の中ならそのまま追記
+		if (quote_flag) {
+
+			// "が出てきたら引用文字列終了
+			if (c == '"') {
+				quote_flag = false;
+			}
+
+			// 引数候補文字列に現在位置の文字を追加
+			arg_item += c;
+
+		} else {
+
+			// (が出てきたら引数レベル加算
+			if (c == '(') {
+				arg_level++;
+			}
+
+			// ()内ならそのまま追記
+			if (arg_level > 0) {
+
+				// )が出てきたら引数レベル減算
+				if (c == ')') {
+					arg_level--;
+				}
+
+				// 引数候補文字列に現在位置の文字を追加
+				arg_item += c;
+
+			} else {
+
+				// ,が出てきたら、現在の文字列を引数として確定
+				if (c == ',') {
+
+					// 現在の引数候補文字列を引数として追加
+					result.push(arg_item);
+
+					// 引数候補文字列を初期化
+					arg_item = '';
+
+				} else {
+
+					// 引数候補文字列に現在位置の文字を追加
+					arg_item += c;
+
+					// "が出てきたら引用符フラグ設定
+					if (c == '"') {
+						quote_flag = true;
+					}
+
+				}
+
+			}
+
+		}
+
+		// 引数文字列の最後まで処理したら、最後の引数を追加
+		if (i == text.length - 1) {
+			result.push(arg_item);
+		}
+
+	}
+
+	return result;
+
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,2100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body onload="init()">
+
+<p>表示Canvas<span id="posLabelElement"></span></p>
+
+<canvas id="viewCanvasElement"></canvas>
+
+<script src="KeyStatusHolder.js"></script>
+<script src="MessageWindow.js"></script>
+<script src="SelectDialog.js"></script>
+<script src="ResourceManager.js"></script>
+
+<script>
+
+// イベント情報オブジェクトコンストラクタ
+function EventItem(ev_cond, ev_type, ev_chr, ev_script) {
+
+	// 発動条件
+	this.cond = ev_cond;
+
+	// 発動タイプ
+	this.type = ev_type;
+
+	// キャラクタ画像番号
+	this.chr = ev_chr;
+
+	// スクリプト文字列の改行を\nに統一
+	var script = ev_script.replace("\r\n", "\n");
+	script = script.replace("\r", "\n");
+
+	// 各行を配列に格納
+	var lines = script.split("\n");
+
+	// スクリプトリスト作成
+	this.scriptList = new Array();
+
+	var i;
+	var result = "";
+
+	// 各行をスクリプトオブジェクトに変換し配列に格納
+	for (i = 0;i < lines.length;i++) {
+
+		// 行頭と行末の空白・改行文字削除
+		lines[i] = trim(lines[i]);
+
+		// スクリプトをスクリプトリストに格納
+		if (lines[i] != null) {
+			this.scriptList.push(parseFunction(lines[i]));
+		}
+
+	}
+
+}
+
+// 敵オブジェクトコンストラクタ
+function Enemy(no) {
+
+	// 指定された敵番号に応じてパラメータを設定
+	this.name = enemyList[no].name;
+	this.hp = enemyList[no].hp;
+	this.at = enemyList[no].at;
+	this.def = enemyList[no].def;
+	this.exp = enemyList[no].exp;
+	this.image = enemyList[no].image;
+
+}
+
+// 主人公状態保持オブジェクト
+var statusHolder = new Object();
+
+// 初期パラメータ設定
+var DEFAULT_MHP = 20;
+var DEFAULT_HP = DEFAULT_MHP;
+var DEFAULT_AT = 8;
+var DEFAULT_DEF = 8;
+
+statusHolder.hp = DEFAULT_HP;
+statusHolder.mhp = DEFAULT_MHP;
+statusHolder.at = DEFAULT_AT;
+statusHolder.def = DEFAULT_DEF;
+statusHolder.exp = 0;
+
+// テスト状態
+var TESTSTATE_NONE = 0;
+var TESTSTATE_LOADING = 1;
+var TESTSTATE_LOADED = 2;
+var TESTSTATE_WALK = 3;
+var TESTSTATE_SCRIPT = 4;
+
+var test_status = TESTSTATE_NONE;
+
+var LOADINGSTATE_NONE = 0;
+var LOADINGSTATE_MAP = 1;
+var LOADINGSTATE_MAP_LOADING = 2;
+var LOADINGSTATE_MAP_LOADED = 3;
+var LOADINGSTATE_EVENTMAP = 4;
+var LOADINGSTATE_EVENTMAP_LOADING = 5;
+var LOADINGSTATE_EVENTMAP_LOADED = 6;
+var LOADINGSTATE_EVENT = 7;
+var LOADINGSTATE_EVENT_LOADING = 8;
+var LOADINGSTATE_EVENT_LOADED = 9;
+var LOADINGSTATE_ENEMY = 10;
+var LOADINGSTATE_ENEMY_LOADING = 11;
+var LOADINGSTATE_ENEMY_LOADED = 12;
+var LOADINGSTATE_IMAGE = 13;
+var LOADINGSTATE_IMAGE_LOADING = 14;
+var LOADINGSTATE_IMAGE_LOADED = 15;
+var LOADINGSTATE_START = 16;
+var LOADINGSTATE_START_LOADING = 17;
+var LOADINGSTATE_START_LOADED = 18;
+
+var loading_status = LOADINGSTATE_NONE;
+
+var resManager = new ResourceManager();
+
+// スクリプト処理状態
+var SCRIPTSTATE_NONE = 0;
+var SCRIPTSTATE_CODELOAD = 1;
+var SCRIPTSTATE_CODEEXEC = 2;
+var SCRIPTSTATE_CODEEXIT = 3;
+
+var script_status;
+
+// スクリプト関数処理段階
+var SCRIPTCODESTAGE_NONE = 0;
+var SCRIPTCODESTAGE_IMAGE_LOADING = 1;
+var SCRIPTCODESTAGE_IMAGE_LOADED = 2;
+var SCRIPTCODESTAGE_IMAGE_VIEW = 3;
+var SCRIPTCODESTAGE_IMAGE_EXIT = 4;
+var SCRIPTCODESTAGE_BATTLE_START = 5;
+var SCRIPTCODESTAGE_BATTLE_COMMAND_IN = 6;
+var SCRIPTCODESTAGE_BATTLE_COMMAND = 7;
+var SCRIPTCODESTAGE_BATTLE_BATTLE_IN = 8;
+var SCRIPTCODESTAGE_BATTLE_BATTLE = 9;
+var SCRIPTCODESTAGE_BATTLE_WIN_IN = 10;
+var SCRIPTCODESTAGE_BATTLE_WIN = 11;
+var SCRIPTCODESTAGE_BATTLE_ESCAPE_IN = 12;
+var SCRIPTCODESTAGE_BATTLE_ESCAPE = 13;
+var SCRIPTCODESTAGE_BATTLE_EXIT = 14;
+
+var script_codestage;
+
+var SCRIPTRSULT_SCRIPTEXEC = 1;
+var SCRIPTRSULT_SCRIPTBREAK = 2;
+var SCRIPTRSULT_SCRIPTEXIT = 3;
+
+// スクリプト用メッセージ表示ウインドウ
+var scriptMeswin = new MessageWindow();
+
+// スクリプト用選択ダイアログ
+var scriptSelectDlg = new SelectDialog();
+
+// スクリプト用Imageオブジェクト
+var scriptImage = null;
+
+// 現在のスクリプト処理位置
+var script_pos;
+
+// 地形チップサイズ設定
+var chip_width = 32;
+var chip_height = 32;
+
+// マップサイズ
+var map_cols;
+var map_rows;
+
+// 表示サイズ設定
+var view_cols = 13;
+var view_rows = 13;
+
+var view_range_x = 6;
+var view_range_y = 6;
+
+var i;
+
+// キャラクタ画像
+var chrImage = null;
+
+// イベントキャラクタ画像
+var evchrImg = null;
+
+var enemyImg = null;
+
+// マップチップ画像
+var chipImage;
+
+var map = new Array();
+var eventMap = new Array();
+
+var scroll_pos = 0;
+
+// スクリプト変数
+var varList = new Array(100);
+
+// リソース画像ファイルリスト
+var resourceImageNameList = ['chips.png', 'chr.png', 'evchr.png', 'enemy.png'];
+
+// リソース画像配列
+var resourceImageList = new Array();
+
+// リソース画像読み込みカウンタ
+var resource_image_loaded = 0;
+
+// 現在処理中のイベントオブジェクト
+var exec_event;
+
+var enemyList = new Array();
+
+// 戦闘イベント敵オブジェクト
+var event_enemy = null;
+
+// イベントテーブル用配列作成
+var eventList = new Array();
+
+// 主人公名
+var chr_name;
+
+// 現在位置初期化
+var x;
+var y;
+
+// 開始後に実行するイベント（スクリプト）
+var start_event;
+
+// マップ内の描画開始位置
+var v_x;
+var v_y;
+
+// 主人公画像描画位置
+var chr_x = chip_width * Math.floor(view_cols / 2);
+var chr_y = chip_height * Math.floor(view_rows / 2);
+
+// 表示canvasへ描画を行う範囲
+var v_cols = view_cols;
+var v_rows = view_rows;
+
+// 最初にずらす量
+var sx = 0;
+var sy = 0;
+
+// スクロールによる位置移動
+var dx = 0;
+var dy = 0;
+
+// スクロール中フラグ
+var scroll_state = 0;
+
+// スクロール方向
+var scroll_dir = KeyStatusHolder.KEYFLAG_NONE;
+
+var script_image_x, script_image_y;
+
+var viewCanvas;
+var posLabel;
+
+// 主人公ステータス描画領域の高さ
+var status_height = 24;
+
+// 主人公ステータス描画用フォント
+var status_font = "16px monospace";
+
+// キー入力処理オブジェクト作成
+var key = new KeyStatusHolder();
+
+// キー押下時イベントハンドラ
+function onKeyDown(e) {
+	key.OnKeyDown(e);
+}
+
+// キー解放時イベントハンドラ
+function onKeyUp(e) {
+	key.OnKeyUp(e);
+}
+
+// ページ読み込み完了時に各種初期化
+function init() {
+
+	// キーイベント処理関数設定
+	document.onkeydown = onKeyDown;
+	document.onkeyup = onKeyUp;
+
+	viewCanvas = document.getElementById("viewCanvasElement");
+
+	posLebel = document.getElementById("posLabelElement");
+
+	viewContext = viewCanvas.getContext("2d");
+
+	// 表示canvasのサイズ設定
+	viewCanvas.width = chip_width * view_cols;
+	viewCanvas.height = chip_height * view_rows + status_height;
+
+	// 変数を初期化
+	for (i = 0;i < varList.length;i++) {
+		varList[i] = 0;
+	}
+
+	// 読み込み状態に入る
+	test_status = TESTSTATE_LOADING;
+	loading_status = LOADINGSTATE_MAP;
+
+	// メイン処理開始
+	process();
+
+}
+
+// マップ表示開始
+function start() {
+
+	// 開始時イベントの指定があれば、イベント実行状態へ
+	if (start_event >= 0) {
+
+		// 処理中イベントを設定
+		exec_event = eventList[start_event];
+
+		script_pos = 0;
+
+		// スクリプト処理中状態へ移行
+		test_status = TESTSTATE_SCRIPT;
+		script_status = SCRIPTSTATE_CODELOAD;
+
+	} else {
+		// マップ通常状態へ
+		test_status = TESTSTATE_WALK;
+	}
+
+}
+
+// ゲームを駆動するメイン関数
+function process() {
+
+	var script_result;
+
+	switch (test_status) {
+
+	// データ読み込み時
+	case TESTSTATE_LOADING:
+
+		loadData();
+
+		break;
+
+	// データを読み込んだらゲーム開始
+	case TESTSTATE_LOADED:
+
+		start();
+
+		break;
+
+	// 通常（マップ表示・スクロール処理）時
+	case TESTSTATE_WALK:
+
+		// 一チップ分スクロールが終了したらウエイトなしで次のprocess()
+		if (walk()) {
+			return process();
+		}
+
+		break;
+
+	// スクリプト処理中
+	case TESTSTATE_SCRIPT:
+
+		// スクリプト処理
+		do {
+
+			script_result =  script();
+
+			// スクリプトの処理が終わったらイベントを終えてマップ移動状態へ
+			if (script_result == SCRIPTRSULT_SCRIPTEXIT) {
+				test_status = TESTSTATE_WALK;
+			}
+
+		} while(script_result == SCRIPTRSULT_SCRIPTEXEC);
+
+		break;
+
+	}
+
+	// 現在の状態をブラウザ上に描画
+	draw(viewContext);
+
+	// ウエイトを入れてから再びprocess()を呼び出す
+	setTimeout("process()", 20);
+
+}
+
+// データ読み込み
+function loadData() {
+
+	var items;
+
+	var data;
+	var i;
+
+	switch (loading_status) {
+
+	// マップデータ読み込みを開始
+	case LOADINGSTATE_MAP:
+
+		loading_status = LOADINGSTATE_MAP_LOADING;
+
+		resManager.loadText("map.dat", function() { loading_status = LOADINGSTATE_MAP_LOADED; });
+
+		break;
+
+	// 読み込んだマップデータを元にマップ情報設定
+	case LOADINGSTATE_MAP_LOADED:
+
+		loadMap(resManager.getItem("map.dat").item);
+
+		loading_status = LOADINGSTATE_EVENTMAP;
+
+		break;
+
+	// イベント配置情報読み込みを開始
+	case LOADINGSTATE_EVENTMAP:
+
+		loading_status = LOADINGSTATE_EVENTMAP_LOADING;
+
+		resManager.loadText("eventmap.dat", function() { loading_status = LOADINGSTATE_EVENTMAP_LOADED; });
+
+		break;
+
+	// 読み込んだデータからイベントを配置
+	case LOADINGSTATE_EVENTMAP_LOADED:
+
+		loadEventMap(resManager.getItem("eventmap.dat").item);
+
+		loading_status = LOADINGSTATE_EVENT;
+
+		break;
+
+	// イベント情報取得を開始
+	case LOADINGSTATE_EVENT:
+
+		loading_status = LOADINGSTATE_EVENT_LOADING;
+
+		resManager.loadText("event.dat", function() { loading_status = LOADINGSTATE_EVENT_LOADED; });
+
+		break;
+
+	// 読み込んだデータからイベントテーブルを作成
+	case LOADINGSTATE_EVENT_LOADED:
+
+		loadEvent(resManager.getItem("event.dat").item);
+
+		loading_status = LOADINGSTATE_ENEMY;
+
+		break;
+
+	// 敵情報読み込みを開始
+	case LOADINGSTATE_ENEMY:
+
+		loading_status = LOADINGSTATE_ENEMY_LOADING;
+
+		resManager.loadText("enemy.dat", function() { loading_status = LOADINGSTATE_ENEMY_LOADED; });
+
+		break;
+
+	// 読み込んだデータから敵データを作成
+	case LOADINGSTATE_ENEMY_LOADED:
+
+		loadEnemy(resManager.getItem("enemy.dat").item);
+
+		loading_status = LOADINGSTATE_IMAGE;
+
+		break;
+
+	// 画像読み込みを開始
+	case LOADINGSTATE_IMAGE:
+
+		loading_status = LOADINGSTATE_IMAGE_LOADING;
+
+		for (i = 0;i < resourceImageNameList.length;i++) {
+			resManager.loadImage(resourceImageNameList[i], resourceImageLoaded);
+		}
+
+		break;
+
+	// 読み込んだ画像を変数に設定
+	case LOADINGSTATE_IMAGE_LOADED:
+
+		// マップ地形チップ画像
+		chipImage = resManager.getItem("chips.png").item;
+
+		// 主人公のキャラクタ画像
+		chrImg = resManager.getItem("chr.png").item;
+
+		// イベントキャラクタ画像
+		evchrImg = resManager.getItem("evchr.png").item;
+
+		// 敵キャラクタ画像
+		enemyImg = resManager.getItem("enemy.png").item;
+
+		loading_status = LOADINGSTATE_START;
+
+		break;
+
+	// 開始時情報読み込みを開始
+	case LOADINGSTATE_START:
+
+		loading_status = LOADINGSTATE_START_LOADING;
+
+		resManager.loadText("start.dat", function() { loading_status = LOADINGSTATE_START_LOADED; });
+
+		break;
+
+	// 読み込んだ開始時情報を設定
+	case LOADINGSTATE_START_LOADED:
+
+		items = resManager.getItem("start.dat").item.split("\t");
+
+		// 開始位置設定
+		x = parseInt(items[0]);
+		y = parseInt(items[1]);
+
+		v_x = x;
+		v_y = y;
+
+		// 開始時イベントスクリプト設定
+		start_event = parseInt(items[2]);
+
+		// 主人公名設定
+		chr_name = items[3];
+
+		// データ読み込み完了状態へ
+		test_status = TESTSTATE_LOADED;
+
+		break;
+
+	}
+
+}
+
+function loadMap(data) {
+
+	var line_pos;
+	var map_size_data;
+	var map_field_data;
+
+	var i;
+	var pos = 0;
+	var item;
+
+	// 改行を\nに統一
+	data = data.replace("\r\n", "\n");
+	data = data.replace("\r", "\n");
+
+	// 最初の\nの位置を取得
+	line_pos = data.indexOf("\n");
+
+	// 最初の一行をマップサイズとして切り出す
+	map_size_data = data.substring(0, line_pos);
+
+	// 2行目以降を数字配列データとして切り出す
+	map_field_data = data.substr(line_pos + 1);
+
+	var mapSizeItems = map_size_data.split(",");
+
+	if (mapSizeItems.length < 2) {
+		return false;
+	}
+
+	// マップサイズを取得
+	var cols = parseInt(mapSizeItems[0]);
+	var rows = parseInt(mapSizeItems[1]);
+
+	var mapData = new Array();
+
+	// マップ情報読み込み
+	for (i = 0;(i < map_field_data.length) && (pos < cols * rows);i++) {
+
+		// 地形チップ番号を取得
+		item = parseInt(map_field_data.charAt(i), 16);
+
+		if (item >= 0 && item < 16) {
+			mapData[pos++] = item;
+		}
+
+	}
+
+	map_cols = cols;
+	map_rows = rows;
+
+	map = mapData;
+
+}
+
+// イベント配置情報を設定
+function loadEventMap(data) {
+
+	var line_pos;
+	var map_size_data;
+	var map_field_data;
+
+	var i, j;
+	var pos = 0;
+	var item;
+
+	// 改行を\nに統一
+	data = data.replace("\r\n", "\n");
+	data = data.replace("\r", "\n");
+
+	var dataLineList = data.split("\n");
+
+	var eventMapData = new Array();
+	var lineItems;
+
+	// データ文字列の各行を読み取り
+	for (i = 0;i < dataLineList.length;i++) {
+
+		// 「,」区切りを分離し個々のイベント番号を取得
+		lineItems = dataLineList[i].split(",");
+
+		for (j = 0;j < lineItems.length;j++) {
+
+			item = parseInt(lineItems[j], 16);
+
+			if (item >= 0 && item <= 255) {
+				if (item == 255) {
+					eventMapData.push(-1);
+				} else {
+					eventMapData.push(item);
+				}
+			}
+
+		}
+
+	}
+
+	eventMap = eventMapData;
+
+}
+
+// イベントテーブル設定
+function loadEvent(data) {
+
+	var itemList = new Array();
+	var item;
+
+	var itemHeader;
+	var condList;
+
+	// 改行を\nに統一
+	data = data.replace("\r\n", "\n");
+	data = data.replace("\r", "\n");
+
+	var dataLineList = data.split("\n");
+
+	var status = 0;
+
+	for (i = 0;i < dataLineList.length;i++) {
+
+		switch (status) {
+
+		// 新たなイベントデータ検索のため走査中
+		case 0:
+
+			// 行頭に<が出てきたら、イベントデータとして認識
+			if (dataLineList[i].length > 0 && dataLineList[i].indexOf("<") == 0) {
+
+				// タブ区切りでイベント属性を認識
+				itemHeader = dataLineList[i].substr(1).split("\t");
+
+				item = new Object();
+
+				// 最初の要素を16進数字のイベント番号として取得
+				item.no = parseInt(itemHeader[0], 16);
+
+				// イベント発動条件を取得
+				if (itemHeader[1].length > 0) {
+
+					condList = itemHeader[1].split(":");
+
+					item.cond = new Array();
+
+					item.cond[0] = parseInt(condList[0]);
+					item.cond[1] = parseInt(condList[1]);
+
+				} else {
+					item.cond = null;
+				}
+
+				item.type = parseInt(itemHeader[2]);
+				item.chr = parseInt(itemHeader[3]);
+				item.script = '';
+
+				// イベントデータ走査中状態に
+				status = 1;
+
+			}
+
+			break;
+
+		// イベントデータ走査中
+		case 1:
+
+			if (dataLineList[i].length > 0) {
+
+				// 行頭に>が出てきたら、イベントデータ終了
+				if (dataLineList[i].indexOf(">") == 0) {
+
+					// これまでに読み込んだデータからイベントを作成し登録
+					eventList[item.no] = new EventItem(item.cond, item.type, item.chr, item.script);
+
+					// イベントデータ検索状態に
+					status = 0;
+
+				} else {
+
+					// 現在の行をイベントスクリプトに追加
+					item.script = item.script + dataLineList[i] + "\n";
+
+				}
+			}
+
+			break;
+
+		}
+
+	}
+
+}
+
+// 敵情報を設定
+function loadEnemy(data) {
+
+	var i;
+
+	var no;
+	var item;
+	var itemFields;
+
+	// 改行を\nに統一
+	data = data.replace("\r\n", "\n");
+	data = data.replace("\r", "\n");
+
+	var dataLineList = data.split("\n");
+
+	for (i = 0;i < dataLineList.length;i++) {
+
+		itemFields = dataLineList[i].split("\t");
+
+		no = parseInt(itemFields[0]);
+
+		if (no >= 0 && no <= 7) {
+
+			item = new Object();
+
+			item.name = itemFields[1];
+			item.hp = parseInt(itemFields[2]);
+			item.at = parseInt(itemFields[3]);
+			item.def = parseInt(itemFields[4]);
+			item.exp = parseInt(itemFields[5]);
+			item.image = parseInt(itemFields[6]);
+
+			enemyList[no] = item;
+
+		}
+
+	}
+
+}
+
+// リソースマネージャーによる画像読み込み完了時のイベントハンドラ
+function resourceImageLoaded() {
+
+	var i;
+
+	// 読み込んでいない画像があれば読み込み状態継続
+	for (i = 0;i < resourceImageNameList.length;i++) {
+		if (!resManager.isLoaded(resourceImageNameList[i])) {
+			return;
+		}
+	}
+
+	// 画像読み込み完了状態へ
+	loading_status = LOADINGSTATE_IMAGE_LOADED;
+
+}
+
+// 通常（マップ上移動）状態時の処理
+function walk() {
+
+	switch (scroll_state) {
+
+	// 非スクロール時
+	case 0:
+
+		switch (key.getStick()) {
+
+		// 上キー押下
+		case KeyStatusHolder.KEYFLAG_UP:
+
+			if (touch(x, y - 1)) {
+
+				// スクロール方向設定
+				scroll_dir = KeyStatusHolder.KEYFLAG_UP;
+				dx = 0;
+				dy = -1;
+
+				// 初期描画ずらし量
+				sx = 0;
+				sy = -chip_height;
+
+				// マップ内描画開始位置
+				v_x = x;
+				v_y = y - 1;
+
+				// 描画範囲
+				v_cols = view_cols;
+				v_rows = view_rows + 1;
+
+				// スクロール中フラグ設定
+				scroll_state = 1;
+
+			}
+
+			break;
+
+		// 下キー押下
+		case KeyStatusHolder.KEYFLAG_DOWN:
+
+			if (touch(x, y + 1)) {
+
+				// スクロール方向設定
+				scroll_dir = KeyStatusHolder.KEYFLAG_DOWN;
+				dx = 0;
+				dy = 1;
+
+				// 初期描画ずらし量
+				sx = 0;
+				sy = 0;
+
+				// マップ内描画開始位置
+				v_x = x;
+				v_y = y;
+
+				// 描画範囲
+				v_cols = view_cols;
+				v_rows = view_rows + 1;
+
+				// スクロール中フラグ設定
+				scroll_state = 1;
+
+			}
+
+			break;
+
+		// 左キー押下
+		case KeyStatusHolder.KEYFLAG_LEFT:
+
+			if (touch(x - 1, y)) {
+
+				// スクロール方向設定
+				scroll_dir = KeyStatusHolder.KEYFLAG_LEFT;
+				dx = -1;
+				dy = 0;
+
+				// 初期描画ずらし量
+				sx = -chip_width;
+				sy = 0;
+
+				// マップ内描画開始位置
+				v_x = x - 1;
+				v_y = y;
+
+				// 描画範囲
+				v_cols = view_cols + 1;
+				v_rows = view_rows;
+
+				// スクロール中フラグ設定
+				scroll_state = 1;
+
+			}
+
+			break;
+
+		// 右キー押下
+		case KeyStatusHolder.KEYFLAG_RIGHT:
+
+			if (touch(x + 1, y)) {
+
+				// スクロール方向設定
+				scroll_dir = KeyStatusHolder.KEYFLAG_RIGHT;
+				dx = 1;
+				dy = 0;
+
+				// 初期描画ずらし量
+				sx = 0;
+				sy = 0;
+
+				// マップ内描画開始位置
+				v_x = x;
+				v_y = y;
+
+				// 描画範囲
+				v_cols = view_cols + 1;
+				v_rows = view_rows;
+
+				// スクロール中フラグ設定
+				scroll_state = 1;
+
+			}
+
+			break;
+
+		}
+
+		break;
+
+	// スクロール中
+	case 1:
+
+		// スクロール位置を更新
+		scroll_pos++;
+
+		// スクロール位置がチップサイズに達したら、スクロール終了
+		if ((((scroll_dir == KeyStatusHolder.KEYFLAG_UP) || (scroll_dir == KeyStatusHolder.KEYFLAG_DOWN)) && scroll_pos == chip_height) || (((scroll_dir == KeyStatusHolder.KEYFLAG_LEFT) || (scroll_dir == KeyStatusHolder.KEYFLAG_RIGHT)) && scroll_pos == chip_width)) {
+
+			// 現在位置更新
+			x += dx;
+			y += dy;
+
+			dx = 0;
+			dy = 0;
+
+			sx = 0;
+			sy = 0;
+
+			v_x = x;
+			v_y = y;
+
+			v_cols = view_cols;
+			v_rows = view_rows;
+
+			scroll_pos = 0;
+			scroll_state = 0;
+
+			// マップ上の現在位置を表示
+			posLebel.innerHTML = '(' + x + ',' + y + ')';
+
+			// 進入時の処理
+			enter(x, y);
+
+			// 直ちに次のprocess呼び出しへ
+			return true;
+
+		}
+
+		break;
+
+	}
+
+	return false;
+
+}
+
+// 接触時処理
+function touch(tx, ty) {
+
+	// 地形チップ番号が4未満なら進入不可
+	if (map[tx + ty * map_cols] < 4) {
+		return false;
+	}
+
+	var ev = null;
+
+	// 指定位置のイベント情報オブジェクトを取得
+	if (eventMap[tx + ty * map_cols] >= 0) {
+		ev = eventList[eventMap[tx + ty * map_cols]];
+	}
+
+	// 接触発動タイプの有効イベントがあればイベント処理状態へ
+	if (ev != null && ev.type == 0 && (ev.cond == null || varList[ev.cond[0]] == ev.cond[1])) {
+
+		// 処理中イベントを設定
+		exec_event = ev;
+
+		script_pos = 0;
+
+		// スクリプト処理中状態へ移行
+		test_status = TESTSTATE_SCRIPT;
+		script_status = SCRIPTSTATE_CODELOAD;
+
+		return false;
+
+	}
+
+	return true;
+
+}
+
+// 進入時の処理
+function enter(ex, ey) {
+
+	var ev = null;
+
+	// 指定位置のイベント情報オブジェクトを取得
+	if (eventMap[ex + ey * map_cols] >= 0) {
+		ev = eventList[eventMap[ex + ey * map_cols]];
+	}
+
+	// 進入発動タイプの有効イベントがあればイベントへ
+	if (ev != null && ev.type == 1 && (ev.cond == null || varList[ev.cond[0]] == ev.cond[1])) {
+
+		// 処理中イベントを設定
+		exec_event = ev;
+
+		script_pos = 0;
+
+		// スクリプト処理中状態へ移行
+		test_status = TESTSTATE_SCRIPT;
+		script_status = SCRIPTSTATE_CODELOAD;
+
+		return false;
+
+	}
+
+	return true;
+
+}
+
+function script() {
+
+	var i;
+	var dmg;
+	var msg;
+
+	switch (script_status) {
+
+	// 次に実行するコードを読み込み実行開始
+	case SCRIPTSTATE_CODELOAD:
+
+		// if()なら条件判定を行って分岐処理
+		if (exec_event.scriptList[script_pos].name == "if") {
+
+			// 条件が成立しなければendif()まで読み飛ばす
+			if (!getBoolValue(exec_event.scriptList[script_pos].args[0])) {
+
+				// if()深さカウンタ設定
+				if_level = 1;
+
+				// 現在のif()が終わるかelse文までループ
+				while (if_level > 0) {
+
+					script_pos++;
+
+					// if()が出てきたら深さ加算
+					if (exec_event.scriptList[script_pos].name == "if") {
+						if_level++;
+					}
+
+					// endif()が出てきたら深さ減算
+					if (exec_event.scriptList[script_pos].name == "endif") {
+						if_level--;
+					}
+
+					// if()直下にelseが出てきたら終了
+					if (if_level == 1 && exec_event.scriptList[script_pos].name == "else") {
+						if_level = 0;
+					}
+
+				}
+
+			}
+
+		} else {
+
+			// elseなら対応するendifまで移動
+			if (exec_event.scriptList[script_pos].name == "else") {
+
+				// if()深さカウンタ設定
+				if_level = 1;
+
+				// 現在のif()が終わるかelse文までループ
+				while (if_level > 0) {
+
+					script_pos++;
+
+					// if()が出てきたら深さ加算
+					if (exec_event.scriptList[script_pos].name == "if") {
+						if_level++;
+					}
+
+					// endif()が出てきたら深さ減算
+					if (exec_event.scriptList[script_pos].name == "endif") {
+						if_level--;
+					}
+
+				}
+
+			}
+
+		}
+
+		if (script_pos >= exec_event.scriptList.length) {
+			return SCRIPTRSULT_SCRIPTEXIT;
+		} else {
+			// 現在位置のスクリプトを実行
+			execFunction(exec_event.scriptList[script_pos]);
+		}
+
+		// script()呼び出し継続
+		return SCRIPTRSULT_SCRIPTEXEC;
+
+	// コード実行中
+	case SCRIPTSTATE_CODEEXEC:
+
+		switch (exec_event.scriptList[script_pos].name) {
+
+		// move()による移動後の処理
+		case "move":
+
+			// 一度通常処理を実行して状態反映の後次へ
+			script_status = SCRIPTSTATE_CODEEXIT;
+
+			break;
+
+		// message()によるメッセージ表示ウインドウ表示中
+		case "message":
+
+			// ユーザーによる操作が終わったらmessage()終了状態へ
+			if (scriptMeswin.process(key)) {
+
+				scriptMeswin.hide();
+
+				script_status = SCRIPTSTATE_CODEEXIT;
+
+			}
+
+			break;
+
+		// select()による選択ダイアログ表示中
+		case "select":
+
+			// ユーザーによる操作が終わったらselect()終了状態へ
+			if (scriptSelectDlg.process(key)) {
+
+				i = getValue(exec_event.scriptList[script_pos].args[0]);
+
+				varList[i] = scriptSelectDlg.getIndex();
+
+				scriptSelectDlg.hide();
+
+				script_status = SCRIPTSTATE_CODEEXIT;
+
+			}
+
+			break;
+
+		// image()による画像表示
+		case "image":
+
+			switch (script_codestage) {
+
+			// 画像読み込み完了
+			case SCRIPTCODESTAGE_IMAGE_LOADED:
+
+				// リターンキー解放を待って表示開始
+				if (key.getTrigger() == KeyStatusHolder.KEYFLAG_NONE) {
+
+					// 画面中央に表示されるよう表示位置を算出
+					script_image_x = Math.floor(((chip_width * view_cols) - scriptImage.width) / 2);
+					script_image_y = Math.floor(((chip_height * view_rows) - scriptImage.height) / 2);
+
+					// 画像表示状態へ
+					script_codestage = SCRIPTCODESTAGE_IMAGE_VIEW;
+
+				}
+
+				break;
+
+			// 画像表示中
+			case SCRIPTCODESTAGE_IMAGE_VIEW:
+
+				// リターンキーが押されたら表示終了待機状態へ
+				if (key.getTrigger() != KeyStatusHolder.KEYFLAG_NONE) {
+					script_codestage = SCRIPTCODESTAGE_IMAGE_EXIT;
+				}
+
+				break;
+
+			// 表示終了待機状態
+			case SCRIPTCODESTAGE_IMAGE_EXIT:
+
+				// リターンキー解放でimage()終了
+				if (key.getTrigger() == KeyStatusHolder.KEYFLAG_NONE) {
+
+					script_status = SCRIPTSTATE_CODEEXIT;
+
+					script_codestage = SCRIPTCODESTAGE_NONE;
+
+					delete scriptImage;
+
+				}
+
+				break;
+
+			}
+
+			break;
+
+		// battle()による戦闘処理中
+		case "battle":
+		case "reg_battle":
+
+			// 現在の処理状態に応じた処理を実行
+			switch (script_codestage) {
+
+			// 戦闘開始メッセージ表示中
+			case SCRIPTCODESTAGE_BATTLE_START:
+
+				// メッセージ表示が終わったら次へ
+				if (scriptMeswin.process(key)) {
+
+					script_codestage = SCRIPTCODESTAGE_BATTLE_COMMAND_IN;
+
+				}
+
+				break;
+
+			// 戦闘コマンド表示待機中
+			case SCRIPTCODESTAGE_BATTLE_COMMAND_IN:
+
+				// リターンキー解放を確認したら戦闘コマンド表示へ
+				if (key.getTrigger() == KeyStatusHolder.KEYFLAG_NONE) {
+
+					script_codestage = SCRIPTCODESTAGE_BATTLE_COMMAND;
+
+					scriptSelectDlg.reset();
+
+					scriptSelectDlg.show();
+
+				}
+
+				break;
+
+			// 戦闘コマンド選択中
+			case SCRIPTCODESTAGE_BATTLE_COMMAND:
+
+				// コマンドが選択されたら次へ
+				if (scriptSelectDlg.process(key)) {
+
+					scriptSelectDlg.hide();
+
+					// 選択結果に応じて状態分岐
+					if (scriptSelectDlg.getIndex() == 0) {
+						script_codestage = SCRIPTCODESTAGE_BATTLE_BATTLE_IN;
+					} else {
+						script_codestage = SCRIPTCODESTAGE_BATTLE_ESCAPE_IN;
+					}
+
+				}
+
+				break;
+
+			// 戦闘処理画面待機中
+			case SCRIPTCODESTAGE_BATTLE_BATTLE_IN:
+
+				// リターンキー解放を確認したら戦闘処理画面へ
+				if (key.getTrigger() == KeyStatusHolder.KEYFLAG_NONE) {
+
+					script_codestage = SCRIPTCODESTAGE_BATTLE_BATTLE;
+
+					dmg = Math.floor(Math.sqrt(statusHolder.at * 3) * Math.sqrt(statusHolder.at / event_enemy.def) / 2);
+
+					dmg = dmg + Math.floor(Math.random() * (1 + (dmg / 4)));
+
+					msg = chr_name + "の攻撃<:br>" + event_enemy.name + "に" + dmg + "のダメージ!<:br><:br>";
+
+					event_enemy.hp -= dmg;
+
+					if (event_enemy.hp > 0) {
+
+						dmg = Math.floor(Math.sqrt(event_enemy.at * 3) * Math.sqrt(event_enemy.at / statusHolder.def) / 2);
+
+						dmg = dmg + Math.floor(Math.random() * (1 + (dmg / 4)));
+
+						msg = msg + event_enemy.name + "の攻撃<:br>" + chr_name + "に" + dmg + "のダメージ!";
+
+						statusHolder.hp -= dmg;
+
+						if (statusHolder.hp < 0) {
+							statusHolder.hp = 0;
+						}
+
+					}
+
+					// 戦闘処理画面のメッセージ設定
+					scriptMeswin.setText(msg, viewContext);
+
+				}
+
+				break;
+
+			// 戦闘処理画面表示中
+			case SCRIPTCODESTAGE_BATTLE_BATTLE:
+
+				// メッセージ表示が終わったら次へ
+				if (scriptMeswin.process(key)) {
+
+					// 敵を倒したら勝利
+					if (event_enemy.hp > 0) {
+						script_codestage = SCRIPTCODESTAGE_BATTLE_COMMAND_IN;
+					} else {
+						script_codestage = SCRIPTCODESTAGE_BATTLE_WIN_IN;
+					}
+
+				}
+
+				break;
+
+			// 勝利画面待機中
+			case SCRIPTCODESTAGE_BATTLE_WIN_IN:
+
+				// リターンキー解放を確認したら勝利画面へ
+				if (key.getTrigger() == KeyStatusHolder.KEYFLAG_NONE) {
+
+					scriptMeswin.setText(event_enemy.name + "を倒した!", viewContext);
+
+					statusHolder.exp += event_enemy.exp;
+
+					if (statusHolder.exp > 999) {
+						statusHolder.exp = 999;
+					}
+
+					// 経験値に応じて主人公の能力値更新
+					statusHolder.mhp = DEFAULT_MHP + Math.floor(Math.sqrt(statusHolder.exp * 2));
+					statusHolder.at = DEFAULT_AT + Math.floor(Math.sqrt(statusHolder.exp * 4));
+					statusHolder.def = DEFAULT_DEF + Math.floor(Math.sqrt(statusHolder.exp * 4));
+
+					// HP全快
+					statusHolder.hp = statusHolder.mhp;
+
+					script_codestage = SCRIPTCODESTAGE_BATTLE_WIN;
+
+					// reg_battle()なら、指定変数を1に設定
+					if (exec_event.scriptList[script_pos].name == "reg_battle") {
+						i = getValue(exec_event.scriptList[script_pos].args[1]);
+
+						varList[i] = 1;
+
+					}
+
+				}
+
+				break;
+
+			// 退避成功画面待機中
+			case SCRIPTCODESTAGE_BATTLE_ESCAPE_IN:
+
+				// リターンキー解放を確認したら退避成功画面へ
+				if (key.getTrigger() == KeyStatusHolder.KEYFLAG_NONE) {
+
+					scriptMeswin.setText("退避に成功!", viewContext);
+
+					script_codestage = SCRIPTCODESTAGE_BATTLE_ESCAPE;
+
+				}
+
+				break;
+
+			// 勝利／退避成功画面表示中
+			case SCRIPTCODESTAGE_BATTLE_WIN:
+			case SCRIPTCODESTAGE_BATTLE_ESCAPE:
+
+				if (scriptMeswin.process(key)) {
+					script_codestage = SCRIPTCODESTAGE_BATTLE_EXIT;
+				}
+
+				break;
+
+			// 戦闘処理終了待機中
+			case SCRIPTCODESTAGE_BATTLE_EXIT:
+
+				// リターンキー解放を確認したら戦闘処理終了
+				if (key.getTrigger() == KeyStatusHolder.KEYFLAG_NONE) {
+
+					scriptMeswin.hide();
+
+					event_enemy = null;
+
+					script_status = SCRIPTSTATE_CODEEXIT;
+
+				}
+
+				break;
+
+			}
+
+			break;
+
+		}
+
+		// スクリプト処理を一時中断してメイン処理を実行
+		return SCRIPTRSULT_SCRIPTBREAK;
+
+	// コード実行終了
+	case SCRIPTSTATE_CODEEXIT:
+
+		// スクリプト処理完了検査
+		if (++script_pos < exec_event.scriptList.length) {
+
+			// まだ実行すべきスクリプト関数があれば次のスクリプト関数へ
+			script_status = SCRIPTSTATE_CODELOAD;
+
+			// script()呼び出し継続
+			return SCRIPTRSULT_SCRIPTEXEC;
+
+		} else {
+
+			// script()呼び出し終了
+			return SCRIPTRSULT_SCRIPTEXIT;
+
+		}
+
+		break;
+
+	}
+
+}
+
+// 指定文字列の先頭と末尾にある空白文字を削除した文字列を返す
+function trim(str) {
+
+	if (str == null || str.length < 1) {
+		return null;
+	}
+
+	var result;
+
+	var start_index = 0;
+	var last_index = str.length - 1;
+
+	// 行頭から空白文字でない文字が出てくる位置を検索
+	while (start_index < str.length && (str.charAt(start_index) == ' ' || str.charAt(start_index) == "\t" || str.charAt(start_index) == "\r"  || str.charAt(start_index) == "\n")) {
+		start_index++;
+	}
+
+	// 空白文字のみの文字列ならnullを返す
+	if (start_index == str.length) {
+		return null;
+	}
+
+	// 行末から空白文字でない文字が出てくる位置を検索
+	while (last_index >= 0 && (str.charAt(last_index) == ' ' || str.charAt(last_index) == "\t" || str.charAt(last_index) == "\r"  || str.charAt(last_index) == "\n")) {
+		last_index--;
+	}
+
+	return str.substring(start_index, last_index + 1);
+
+}
+
+function isString(arg) {
+
+	var i;
+
+	// 空文字列なら偽
+	if (arg == null || arg.length < 1) {
+		return false;
+	}
+
+	// 最初と最後が"でなければ偽
+	if (arg.charAt(0) != '"' || arg.charAt(arg.length - 1) != '"') {
+		return false;
+	}
+
+	// 途中に"が出てきたら偽
+	for (i = 1;i < arg.length - 1;i++) {
+		if (arg.charAt(i) == '"') {
+			return false;
+		}
+	}
+
+	// 最後まで条件違反がなければ真
+	return true;
+
+}
+
+// 文字列が数字か検査
+function isNum(arg) {
+
+	var i;
+
+	// 空文字列なら偽
+	if (arg == null || arg.length < 1) {
+		return false;
+	}
+
+	str = new String(arg);
+
+	if (arg == null || arg.length < 1) {
+		return false;
+	}
+
+	// 0-9以外の文字が出てきたら偽
+	for (i = 0;i < str.length;i++) {
+		if (str.charAt(i) < '0' || str.charAt(i) > '9') {
+			return false;
+		}
+	}
+
+	// 最後まで条件違反がなければ真
+	return true;
+
+}
+
+// 渡された文字列をスクリプトで評価可能な値として評価
+function getValue(str) {
+
+	// 数字からなる文字列なら数値化して返す
+	if (isNum(str)) {
+		return parseInt(str);
+	}
+
+	// スクリプト関数として実行しその値を返す
+	return execFunction(parseFunction(str));
+
+}
+
+// 渡された文字列をスクリプトで評価可能な真偽値として評価
+function getBoolValue(str) {
+
+	var func = parseFunction(str);
+
+	// 文字列が真偽値を返すスクリプト関数ならその実行結果を返す
+	if (func.name == "eq" || func.name == "ne") {
+		return execFunction(func);
+	}
+
+	return undefined;
+
+}
+
+// 文字列をスクリプト関数として解析し、スクリプトオブジェクトを返す
+function parseFunction(str) {
+
+	// 文字列内で(の次（引数の最初）の位置を取得
+	var arg_start_index = str.indexOf("(") + 1;
+
+	var result = new Object();
+
+	// 関数名を設定
+	result.name = str.substring(0, arg_start_index - 1);
+
+	// 引数の文字列を取得
+	var func_arg = str.substring(arg_start_index, str.length - 1);
+
+	// 引数を切り分け引数配列を作成
+	result.args = getArgList(func_arg);
+
+	// 文字列を保存
+	result.script = str;
+
+	return result;
+
+}
+
+// スクリプトオブジェクトを実行・評価し、その値を返す
+function execFunction(func) {
+
+	var i;
+	var sum = 0;
+	var str = '';
+	var val;
+	var val1, val2;
+	var list;
+	var winx, winy;
+
+	// sum()関数
+	if (func.name == 'sum') {
+
+		// 引数を数値として加算していく
+		for (i = 0;i < func.args.length;i++) {
+			sum += getValue(func.args[i]);
+		}
+
+		script_status = SCRIPTSTATE_CODEEXIT;
+
+		// 加算結果を返す
+		return sum;
+
+	}
+
+	// setVar()関数
+	if (func.name == 'setVar') {
+
+		if (func.args.length == 2) {
+
+			// 変数番号を取得
+			i = getValue(func.args[0]);
+
+			// 代入値を取得
+			val = getValue(func.args[1]);
+
+			script_status = SCRIPTSTATE_CODEEXIT;
+
+			// 変数番号が有効なら代入を実行し、その値を返す
+			if (i >= 0 && i <= 99) {
+
+				varList[i] = val;
+
+				return val;
+
+			}
+
+		}
+
+	}
+
+	// getVar()関数
+	if (func.name == 'getVar') {
+
+		if (func.args.length == 1) {
+
+			// 変数番号を取得
+			i = getValue(func.args[0]);
+
+			script_status = SCRIPTSTATE_CODEEXIT;
+
+			// 変数番号が有効なら対応する変数の値を返す
+			if (i >= 0 && i <= 99) {
+				return varList[i];
+			}
+
+		}
+
+	}
+
+	// rand()関数
+	if (func.name == 'rand') {
+
+		if (func.args.length == 1) {
+
+			// 引数値を取得
+			i = getValue(func.args[0]);
+
+			// 乱数値を取得
+			val = Math.floor(Math.random() * i);
+
+			script_status = SCRIPTSTATE_CODEEXIT;
+
+			return val;
+
+		}
+
+	}
+
+	// eq()関数
+	if (func.name == 'eq') {
+
+		if (func.args.length == 2) {
+
+			// 引数を値として評価
+			val1 = getValue(func.args[0]);
+			val2 = getValue(func.args[1]);
+
+			script_status = SCRIPTSTATE_CODEEXIT;
+
+			// 等しければtrue、等しくなければfalseを返す
+			if (val1 == val2) {
+				return true;
+			} else {
+				return false;
+			}
+
+		}
+
+	}
+
+	// ne()関数
+	if (func.name == 'ne') {
+
+		if (func.args.length == 2) {
+
+			// 引数を値として評価
+			val1 = getValue(func.args[0]);
+			val2 = getValue(func.args[1]);
+
+			script_status = SCRIPTSTATE_CODEEXIT;
+
+			// 等しくなればtrue、等しければfalseを返す
+			if (val1 != val2) {
+				return true;
+			} else {
+				return false;
+			}
+
+		}
+
+	}
+
+	// move()関数
+	if (func.name == 'move') {
+
+		if (func.args.length == 2) {
+
+			// 引数を値として評価
+			val1 = getValue(func.args[0]);
+			val2 = getValue(func.args[1]);
+
+			// 移動を反映（描画）させるためスクリプト実行中状態へ
+			script_status = SCRIPTSTATE_CODEEXEC;
+
+			x = val1;
+			y = val2;
+
+			v_x = x;
+			v_y = y;
+
+			return x;
+
+		}
+
+	}
+
+	// message()関数
+	if (func.name == 'message') {
+
+		// 引数は単一の文字列のみ有効
+		if (func.args.length == 1 && isString(func.args[0])) {
+
+			// ""を削除し中身の文字列を取得
+			str = func.args[0].substring(1, func.args[0].length - 1);
+
+			// スクリプト用メッセージ表示ウインドウに表示文字列を設定
+			scriptMeswin.setText(str, viewContext);
+
+			winx = ((chip_width * view_cols) - scriptMeswin.getWidth()) / 2;
+			winy = (chip_height * view_rows) - scriptMeswin.getHeight() - chip_height;
+
+			scriptMeswin.setPos(winx, winy);
+
+			// スクリプト用メッセージ表示ウインドウを表示状態に
+			scriptMeswin.show();
+
+			// スクリプト実行中状態へ
+			script_status = SCRIPTSTATE_CODEEXEC;
+
+			// メッセージ文字列を値とする
+			return str;
+
+		}
+
+	}
+
+	// select()関数
+	if (func.name == 'select') {
+
+		if (func.args.length > 2) {
+
+			list = new Array();
+
+			for (i = 1;i < func.args.length;i++) {
+
+				// ""を削除し中身の文字列を取得
+				str = trim(func.args[i]);
+				str = str.substring(1, str.length - 1);
+
+				list.push(str);
+
+			}
+
+			// スクリプト用選択ダイアログに選択肢を設定
+			scriptSelectDlg.setItems(list, viewContext);
+
+			winx = ((chip_width * view_cols) - scriptSelectDlg.getWidth()) / 2;
+			winy = ((chip_height * view_rows) - scriptSelectDlg.getHeight()) / 2;
+
+			scriptSelectDlg.setPos(winx, winy);
+
+			// スクリプト用選択ダイアログを表示状態に
+			scriptSelectDlg.show();
+
+			// スクリプト実行中状態へ
+			script_status = SCRIPTSTATE_CODEEXEC;
+
+			// ダイアログを値とする
+			return scriptSelectDlg;
+
+		}
+
+	}
+
+	// image()関数
+	if (func.name == 'image') {
+
+		if (func.args.length == 1) {
+
+			// スクリプト実行中状態へ
+			script_status = SCRIPTSTATE_CODEEXEC;
+
+			// 画像読み込み中状態へ
+			script_codestage = SCRIPTCODESTAGE_IMAGE_LOADING;
+
+			// スクリプト画像オブジェクト作成
+			scriptImage = new Image();
+
+			// 読み込みが終わったら読み込み完了状態へ
+			scriptImage.onload = function() {
+				script_codestage = SCRIPTCODESTAGE_IMAGE_LOADED;
+			}
+
+			str = trim(func.args[0]);
+			str = str.substring(1, str.length - 1);
+
+			// 読み込む画像を設定
+			scriptImage.src = str;
+
+			return scriptImage;
+
+		}
+
+	}
+
+	// battle()関数
+	if (func.name == 'battle') {
+
+		if (func.args.length == 1) {
+
+			// 引数の敵番号取得
+			i = getValue(func.args[0]);
+
+			// 敵オブジェクト作成
+			event_enemy = new Enemy(i);
+
+			// スクリプト用メッセージ表示ウインドウに表示文字列を設定
+			scriptMeswin.setText(event_enemy.name + "と遭遇!", viewContext);
+
+			winx = ((chip_width * view_cols) - scriptMeswin.getWidth()) / 2;
+			winy = (chip_height * view_rows) - scriptMeswin.getHeight() - chip_height;
+
+			scriptMeswin.setPos(winx, winy);
+
+			// スクリプト用メッセージ表示ウインドウを表示状態に
+			scriptMeswin.show();
+
+			list = new Array();
+
+			list.push("戦う");
+			list.push("逃げる");
+
+			// スクリプト用選択ダイアログに選択肢を設定
+			scriptSelectDlg.setItems(list, viewContext);
+
+			winx = ((chip_width * view_cols) - scriptSelectDlg.getWidth()) / 2;
+			winy = ((chip_height * view_rows) - scriptSelectDlg.getHeight()) / 2;
+
+			scriptSelectDlg.setPos(winx, winy);
+
+			// スクリプト実行中状態へ
+			script_status = SCRIPTSTATE_CODEEXEC;
+
+			// 戦闘開始状態に
+			script_codestage = SCRIPTCODESTAGE_BATTLE_START;
+
+			return event_enemy;
+
+		}
+
+	}
+
+	// reg_battle()関数
+	if (func.name == 'reg_battle') {
+
+		if (func.args.length == 2) {
+
+			// 引数の敵番号取得
+			i = getValue(func.args[0]);
+
+			// 敵オブジェクト作成
+			event_enemy = new Enemy(i);
+
+			// スクリプト用メッセージ表示ウインドウに表示文字列を設定
+			scriptMeswin.setText(event_enemy.name + "と遭遇!", viewContext);
+
+			winx = ((chip_width * view_cols) - scriptMeswin.getWidth()) / 2;
+			winy = (chip_height * view_rows) - scriptMeswin.getHeight() - chip_height;
+
+			scriptMeswin.setPos(winx, winy);
+
+			// スクリプト用メッセージ表示ウインドウを表示状態に
+			scriptMeswin.show();
+
+			list = new Array();
+
+			list.push("戦う");
+			list.push("逃げる");
+
+			// スクリプト用選択ダイアログに選択肢を設定
+			scriptSelectDlg.setItems(list, viewContext);
+
+			winx = ((chip_width * view_cols) - scriptSelectDlg.getWidth()) / 2;
+			winy = ((chip_height * view_rows) - scriptSelectDlg.getHeight()) / 2;
+
+			scriptSelectDlg.setPos(winx, winy);
+
+			// 引数の敵番号取得
+			i = getValue(func.args[1]);
+
+			// 指定変数を0に設定
+			varList[i] = 0;
+
+			// スクリプト実行中状態へ
+			script_status = SCRIPTSTATE_CODEEXEC;
+
+			// 戦闘開始状態に
+			script_codestage = SCRIPTCODESTAGE_BATTLE_START;
+
+			return event_enemy;
+
+		}
+
+	}
+
+	script_status = SCRIPTSTATE_CODEEXIT;
+
+	return undefined;
+
+}
+
+// 引数分離処理
+function getArgList(text) {
+
+	var arg_level = 0;
+	var quote_flag = false;
+
+	var arg_item = '';
+
+	var c;
+	var i;
+
+	var result = new Array();
+
+	// 引数文字列から個々の引数を切り出す
+	for (i = 0;i < text.length;i++) {
+
+		// 現在位置の文字を取得
+		c = text.charAt(i);
+
+		// 引用符の中ならそのまま追記
+		if (quote_flag) {
+
+			// "が出てきたら引用文字列終了
+			if (c == '"') {
+				quote_flag = false;
+			}
+
+			// 引数候補文字列に現在位置の文字を追加
+			arg_item += c;
+
+		} else {
+
+			// (が出てきたら引数レベル加算
+			if (c == '(') {
+				arg_level++;
+			}
+
+			// ()内ならそのまま追記
+			if (arg_level > 0) {
+
+				// )が出てきたら引数レベル減算
+				if (c == ')') {
+					arg_level--;
+				}
+
+				// 引数候補文字列に現在位置の文字を追加
+				arg_item += c;
+
+			} else {
+
+				// ,が出てきたら、現在の文字列を引数として確定
+				if (c == ',') {
+
+					// 現在の引数候補文字列を引数として追加
+					result.push(trim(arg_item));
+
+					// 引数候補文字列を初期化
+					arg_item = '';
+
+				} else {
+
+					// 引数候補文字列に現在位置の文字を追加
+					arg_item += c;
+
+					// "が出てきたら引用符フラグ設定
+					if (c == '"') {
+						quote_flag = true;
+					}
+
+				}
+
+			}
+
+		}
+
+		// 引数文字列の最後まで処理したら、最後の引数を追加
+		if (i == text.length - 1) {
+			result.push(trim(arg_item));
+		}
+
+	}
+
+	return result;
+
+}
+
+// 描画関数
+function draw(context) {
+
+	// マップ表示中でなければ戻る
+	if (test_status != TESTSTATE_WALK && test_status != TESTSTATE_SCRIPT) {
+		return;
+	}
+
+	var chip_index, chip_col, chip_row;
+
+	// 表示canvas上にマップの地形を描画
+	for (i = 0;i < v_rows;i++) {
+		for (j= 0;j < v_cols;j++) {
+
+			// 描画対象となるチップを決定
+			chip_index = map[(v_x - view_range_x + j)  + (v_y - view_range_y + i) * map_cols];
+
+			// チップ画像の位置を算出
+			chip_col = chip_index % 4;
+			chip_row = Math.floor(chip_index / 4);
+
+			// チップ画像の部分を描画
+			context.drawImage(chipImage, chip_col * chip_width, chip_row * chip_height, chip_width, chip_height, sx + (-dx * scroll_pos) + j * chip_width, sy + (-dy * scroll_pos) + i * chip_height, chip_width, chip_height);
+
+			var ev = null;
+
+			// 指定位置のイベント情報オブジェクトを取得
+			if (eventMap[(v_x - view_range_x + j)  + (v_y - view_range_y + i) * map_cols] >= 0) {
+				ev = eventList[eventMap[(v_x - view_range_x + j)  + (v_y - view_range_y + i) * map_cols]];
+			}
+
+			// イベントキャラクタがあれば描画
+			if (ev != null && (ev.cond == null || varList[ev.cond[0]] == ev.cond[1]) && ev.chr >= 0) {
+
+				// チップ画像の位置を算出
+				chip_col = ev.chr % 4;
+				chip_row = Math.floor(ev.chr / 4);
+
+				context.drawImage(evchrImg, chip_col * chip_width, chip_row * chip_height, chip_width, chip_height, sx + (-dx * scroll_pos) + j * chip_width, sy + (-dy * scroll_pos) + i * chip_height, chip_width, chip_height);
+
+			}
+
+		}
+	}
+
+	// 主人公のキャラクタ画像を描画
+	context.drawImage(chrImg, chr_x, chr_y);
+
+	// 敵画像を描画
+	if (event_enemy != null) {
+
+		// 敵画像の位置を算出
+		chip_col = event_enemy.image % 4;
+		chip_row = Math.floor(event_enemy.image / 4);
+
+		context.drawImage(enemyImg, chip_col * 96, chip_row * 96, 96, 96, Math.floor(scriptMeswin.getX() + (scriptMeswin.getWidth() / 2) - 48), scriptMeswin.getY() - 96, 96, 96);
+
+	}
+
+	// イベント用部品を描画
+	scriptMeswin.draw(context);
+	scriptSelectDlg.draw(context);
+
+	// スクリプトimageを描画
+	if (script_codestage == SCRIPTCODESTAGE_IMAGE_VIEW || script_codestage == SCRIPTCODESTAGE_IMAGE_EXIT) {
+		context.drawImage(scriptImage, script_image_x, script_image_y);
+	}
+
+	// ステータス描画位置設定
+	var status_y = viewCanvas.height - status_height;
+
+	context.fillStyle = "#000000";
+	context.fillRect(0, status_y, viewCanvas.width, status_height);
+
+	context.font = status_font;
+	context.fillStyle = "#ffffff";
+	context.textBaseline = 'middle';
+
+	context.fillText("HP:" + statusHolder.hp + "/" + statusHolder.mhp, 2, status_y + status_height / 2);
+	context.fillText("攻撃力:" + statusHolder.at, 100, status_y + status_height / 2);
+	context.fillText("守備力:" + statusHolder.def, 200, status_y + status_height / 2);
+	context.fillText("経験値:" + statusHolder.exp, 300, status_y + status_height / 2);
+
+}
+
+</script>
+
+</body>
+</html>

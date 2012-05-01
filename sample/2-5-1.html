@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<canvas id="viewCanvasElement" width="200" height="200" style="background: #0000ff;"></canvas>
+
+<script>
+
+	// ウインドウ全体の大きさ
+	var win_width = 0;
+	var win_height = 0;
+
+	// 選択肢文字列の描画位置
+	var item_x = 0;
+	var item_y = 0;
+
+	// 描画対象Canvas内のウインドウ位置
+	var x = 32;
+	var y = 32;
+
+	// 選択肢文字列を描画するフォント
+	var font = "14px monospace";
+
+	// 選択肢一つの高さ
+	item_height = 18;
+
+	// 選択肢
+	var items = ["テスト文字列1", "テスト文字列2", "テスト文字列3"];
+
+	// 表示Canvasの描画用context取得
+	var viewContext = document.getElementById("viewCanvasElement").getContext("2d");
+
+	// フォントを設定
+	viewContext.font = font;
+
+	var maxWidth = 0;
+
+	// 選択肢文字列中の最大描画幅を取得
+	for (i = 0;i < items.length;i++) {
+		if (viewContext.measureText(items[i]).width > maxWidth) {
+			maxWidth = viewContext.measureText(items[i]).width;
+		}
+	}
+
+	// ウインドウの大きさを設定
+	win_width = maxWidth + 8;
+	win_height = items.length * item_height + 8;
+
+	item_x = 4;
+	item_y = 4;
+
+	// ウインドウ領域全体を白でクリア
+	viewContext.fillStyle = '#ffffff';
+	viewContext.fillRect(x + 0, y + 0, win_width, win_height);
+
+	// 枠を残して黒でクリア
+	viewContext.fillStyle = '#000000';
+	viewContext.fillRect(x + 1, y + 1, win_width - 2, win_height - 2);
+
+	// テキスト描画設定
+	viewContext.fillStyle = '#ffffff';
+	viewContext.textBaseline = 'top';
+
+	// 選択肢文字列を描画
+	for (i = 0;i < items.length;i++) {
+		viewContext.fillText(items[i], x + item_x, y + item_y + i * item_height + 2);
+	}
+
+</script>
+
+</body>
+</html>

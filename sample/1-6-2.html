@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<canvas id="testCanvasElement" width="400" height="400" style="background: #cccccc;"></canvas>
+<p><button onclick="test()">一部描画</button></p>
+
+<script>
+
+	var cv = document.getElementById("testCanvasElement");
+	var context = cv.getContext("2d");
+
+	var img = new Image();
+
+	img.onload = function() {
+
+		alert(img.src + "-width:" + img.width + " height:" + img.height);
+
+		context.drawImage(img, 0, 0);
+
+	}
+
+	img.src = "test1.jpg";
+
+	function test() {
+
+		context.clearRect(0, 0, cv.width, cv.height);
+
+		context.drawImage(img, 50, 50, 100, 100, 10, 10, 100, 100);
+		context.drawImage(img, 50, 50, 100, 100, 120, 10, 200, 200);
+
+	}
+
+</script>
+
+</body>
+</html>

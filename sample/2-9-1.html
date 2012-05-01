@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="KeyStatusHolder.js"></script>
+<script src="SelectDialog.js"></script>
+<script>
+	var key = new KeyStatusHolder();
+</script>
+</head>
+<body onload="start()" onkeydown="key.OnKeyDown(event)" onkeyup="key.OnKeyUp(event)">
+
+<canvas id="viewCanvasElement" width="200" height="200" style="background: #0000ff;">
+
+<script>
+
+	// 選択ダイアログオブジェクト作成
+	var dlg = new SelectDialog();
+
+	var viewContext;
+
+	function start() {
+
+		// Canvasのコンテキスト保存
+		viewContext = document.getElementById("viewCanvasElement").getContext("2d");
+
+		// 選択ダイアログに選択肢を設定
+		dlg.setItems(["テスト文字列1", "テスト文字列2", "テスト文字列3"], viewContext);
+
+		// 選択ダイアログ描画位置設定
+		dlg.setPos(10, 10);
+
+		// 選択ダイアログを可視（描画実行）状態に
+		dlg.show();
+
+		// 処理開始
+		process();
+
+	}
+
+	function process() {
+
+		// 選択ダイアログ側の処理を実行
+		if(dlg.process(key)) {
+
+			dlg.hide();
+
+			// 選択結果を表示
+			alert("選択結果:" + dlg.getIndex());
+
+		}
+
+		// 描画処理
+		draw();
+
+		setTimeout("process()", 50);
+
+	}
+
+	function draw() {
+
+		// Canvas全体をクリア
+		viewContext.clearRect(0, 0, 200, 200);
+
+		// 選択ダイアログの描画処理を実行
+		dlg.draw(viewContext);
+
+	}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<input type="text" id="testcode">
+<button onclick="test()">関数評価</button>
+
+<script>
+
+function test() {
+
+	// スクリプト文字列取得
+	var code = document.getElementById("testcode").value;
+
+	// 文字列内で(の次（引数の最初）の位置を取得
+	var arg_start_index = code.indexOf("(") + 1;
+
+	// 関数名を取得
+	var func_name = code.substring(0, arg_start_index - 1);
+
+	// 引数を取得
+	var func_arg = code.substring(arg_start_index, code.length - 1);
+
+	// 引数を,で区切り個々の引数を配列に格納
+	var arg_list = func_arg.split(",");
+
+	var sum = 0;
+	var i;
+
+	// 関数sum()の処理
+	if (func_name == "sum") {
+
+		// 引数を数字として評価し加算
+		for (i = 0;i < arg_list.length;i++) {
+			sum += parseInt(arg_list[i]);
+		}
+
+		// 合計を表示
+		alert("合計は" + sum + "です");
+
+	}
+
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<input type="text" id="testcode">
+<button onclick="test()">関数評価</button>
+
+<script>
+
+function test() {
+
+	// スクリプト文字列取得
+	var code = document.getElementById("testcode").value;
+
+	// 文字列内で(の次（引数の最初）の位置を取得
+	var arg_start_index = code.indexOf("(") + 1;
+
+	// 関数名を取得
+	var func_name = code.substring(0, arg_start_index - 1);
+
+	// 引数を取得
+	var func_arg = code.substring(arg_start_index, code.length - 1);
+
+	// 引数配列作成
+	var arg_list = new Array();
+
+	var arg_flag = false;
+	var arg_item = '';
+
+	var c;
+	var i;
+
+	// 引数文字列から個々の引数を切り出す
+	for (i = 0;i < func_arg.length;i++) {
+
+		// 現在位置の文字を取得
+		c = func_arg.charAt(i);
+
+		// ()内ならそのまま追記
+		if (arg_flag) {
+
+			// )が出てきたら()内フラグリセット
+			if (c == ')') {
+				arg_flag = false;
+			}
+
+			// 引数候補文字列に現在位置の文字を追加
+			arg_item += c;
+
+		} else {
+
+			// ,が出てきたら、現在の文字列を引数として確定
+			if (c == ',') {
+
+				// 現在の引数候補文字列を引数として追加
+				arg_list.push(arg_item);
+
+				// 引数候補文字列を初期化
+				arg_item = '';
+
+			} else {
+
+				// 引数候補文字列に現在位置の文字を追加
+				arg_item += c;
+
+				// (が出てきたら()内フラグセット
+				if (c == '(') {
+					arg_flag = true;
+				}
+
+			}
+
+		}
+
+		// 引数文字列の最後まで処理したら、最後の引数を追加
+		if (i == func_arg.length - 1) {
+			arg_list.push(arg_item);
+		}
+
+	}
+
+	// メッセージ用文字列作成
+	var result = "関数名:" + func_name + " 引数" + arg_list.length;
+
+	var i;
+
+	// メッセージ用文字列に引数を追加
+	for (i = 0;i < arg_list.length;i++) {
+		result += "\n" + (i + 1) + ":" + arg_list[i];
+	}
+
+	// メッセージを表示
+	alert(result);
+
+}
+
+</script>
+
+</body>
+</html>

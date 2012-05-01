@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="KeyStatusHolder.js"></script>
+<script src="MessageWindow.js"></script>
+<script src="SelectDialog.js"></script>
+<script>
+	var key = new KeyStatusHolder();
+</script>
+</head>
+<body onkeydown="key.OnKeyDown(event)" onkeyup="key.OnKeyUp(event)">
+
+<script>
+
+// テスト状態
+var TESTSTATE_NONE = 0;
+var TESTSTATE_MESSAGE_SHOW = 1;
+var TESTSTATE_MESSAGE_PROCESS = 2;
+var TESTSTATE_SELECT_SHOW = 3;
+var TESTSTATE_SELECT_PROCESS = 4;
+
+var test_status = TESTSTATE_NONE;
+
+// 地形チップサイズ設定
+var chip_width = 32;
+var chip_height = 32;
+
+// マップサイズ設定
+var map_cols = 30;
+var map_rows = 30;
+
+// 表示サイズ設定
+var view_cols = 13;
+var view_rows = 13;
+
+var i;
+
+// HTMLタグ出力
+document.write("<div>\n<p>地形チップ</p>\n");
+
+for (i = 0;i < 3;i++) {
+	document.write('<canvas id="chip' + i + '" width="' + chip_width + '" height="' + chip_height + '"></canvas>');
+}
+
+document.write("\n</div>\n");
+
+document.write('<p>表示Canvas<span id="posLabelElement"></span></p>' + "\n");
+
+document.write('<canvas id="viewCanvasElement" width="' + (chip_width * view_cols) + '" height="' + (chip_height * view_rows) + '"></canvas>');
+
+var viewContext = document.getElementById("viewCanvasElement").getContext("2d");
+var posLabel = document.getElementById("posLabelElement");
+
+var chipDataList = new Array();
+var chipList = new Array();
+
+var map = new Array();
+
+var scroll_pos = 0;
+
+// 地形チップ画像（ImageData）を保持する配列を作成
+for (i = 0;i < 3;i++) {
+	chipDataList.push(viewContext.createImageData(chip_width, chip_height));
+}
+
+// チップ0（赤）のImageDataに色情報設定
+for (i = 0;i < chip_height;i++) {
+	for (j = 0;j < chip_width;j++) {
+
+		// 赤成分
+		chipDataList[0].data[j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+		// 緑成分
+		chipDataList[0].data[1 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+		// 青成分
+		chipDataList[0].data[2 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+		// アルファ成分
+		chipDataList[0].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+	}
+}
+
+// チップ1（緑）のImageDataに色情報設定
+for (i = 0;i < chip_height;i++) {
+	for (j = 0;j < chip_width;j++) {
+
+		// 赤成分
+		chipDataList[1].data[j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+		// 緑成分
+		chipDataList[1].data[1 + j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+		// 青成分
+		chipDataList[1].data[2 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+		// アルファ成分
+		chipDataList[1].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+	}
+}
+
+// チップ2（青）のImageDataに色情報設定
+for (i = 0;i < chip_height;i++) {
+	for (j = 0;j < chip_width;j++) {
+
+		// 赤成分
+		chipDataList[2].data[j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+		// 緑成分
+		chipDataList[2].data[1 + j * 4 + i * chip_width * 4] = Math.floor(Math.random() * 64);
+
+		// 青成分
+		chipDataList[2].data[2 + j * 4 + i * chip_width * 4] = 192 + Math.floor(Math.random() * 64);
+
+		// アルファ成分
+		chipDataList[2].data[3 + j * 4 + i * chip_width * 4] = 255;
+
+	}
+}
+
+// ImageDataの画像データをチップ画像（canvas）に描画
+for (i = 0;i < 3;i++) {
+
+	// 地形チップのcanvasを取得
+	chipList[i] = document.getElementById("chip" + i);
+
+	// canvasにImageDataを描画
+	chipList[i].getContext("2d").putImageData(chipDataList[i], 0, 0);
+
+}
+
+// マップデータを乱数で作成
+for (i = 0;i < map_rows;i++) {
+	for (j = 0;j < map_cols;j++) {
+		map[j + i * map_cols] = Math.floor(Math.random() * 3);
+	}
+}
+
+// 現在位置初期化
+var x = 0;
+var y = 0;
+
+// マップ内の描画開始位置
+var v_x = x;
+var v_y = y;
+
+// 表示canvasへ描画を行う範囲
+var v_cols = view_cols;
+var v_rows = view_rows;
+
+// 最初にずらす量
+var sx = 0;
+var sy = 0;
+
+// スクロールによる位置移動
+var dx = 0;
+var dy = 0;
+
+// スクロール中フラグ
+var scroll_state = 0;
+
+// スクロール方向
+var scroll_dir = KeyStatusHolder.KEYFLAG_NONE;
+
+var mes = new MessageWindow();
+var select = new SelectDialog();
+
+// 定時処理開始
+process();
+
+function process() {
+
+	switch (test_status) {
+
+	// 通常（マップ表示・スクロール処理）時
+	case TESTSTATE_NONE:
+
+		switch (scroll_state) {
+
+		// 非スクロール時
+		case 0:
+
+			switch (key.getStick()) {
+
+			// 上キー押下
+			case KeyStatusHolder.KEYFLAG_UP:
+
+				if (y > 0) {
+
+					// スクロール方向設定
+					scroll_dir = KeyStatusHolder.KEYFLAG_UP;
+					dx = 0;
+					dy = -1;
+
+					// 初期描画ズラし量
+					sx = 0;
+					sy = -chip_height;
+
+					// マップ内描画開始位置
+					v_x = x;
+					v_y = y - 1;
+
+					// 描画範囲
+					v_cols = view_cols;
+					v_rows = view_rows + 1;
+
+					// スクロール中フラグ設定
+					scroll_state = 1;
+
+				}
+
+				break;
+
+			// 下キー押下
+			case KeyStatusHolder.KEYFLAG_DOWN:
+
+				if (y < map_rows - view_rows) {
+
+					// スクロール方向設定
+					scroll_dir = KeyStatusHolder.KEYFLAG_DOWN;
+					dx = 0;
+					dy = 1;
+
+					// 初期描画ズラし量
+					sx = 0;
+					sy = 0;
+
+					// マップ内描画開始位置
+					v_x = x;
+					v_y = y;
+
+					// 描画範囲
+					v_cols = view_cols;
+					v_rows = view_rows + 1;
+
+					// スクロール中フラグ設定
+					scroll_state = 1;
+
+				}
+
+				break;
+
+			// 左キー押下
+			case KeyStatusHolder.KEYFLAG_LEFT:
+
+				if (x > 0) {
+
+					// スクロール方向設定
+					scroll_dir = KeyStatusHolder.KEYFLAG_LEFT;
+					dx = -1;
+					dy = 0;
+
+					// 初期描画ズラし量
+					sx = -chip_width;
+					sy = 0;
+
+					// マップ内描画開始位置
+					v_x = x - 1;
+					v_y = y;
+
+					// 描画範囲
+					v_cols = view_cols + 1;
+					v_rows = view_rows;
+
+					// スクロール中フラグ設定
+					scroll_state = 1;
+
+				}
+
+				break;
+
+			// 右キー押下
+			case KeyStatusHolder.KEYFLAG_RIGHT:
+
+				if (x < map_cols - view_cols) {
+
+					// スクロール方向設定
+					scroll_dir = KeyStatusHolder.KEYFLAG_RIGHT;
+					dx = 1;
+					dy = 0;
+
+					// 初期描画ズラし量
+					sx = 0;
+					sy = 0;
+
+					// マップ内描画開始位置
+					v_x = x;
+					v_y = y;
+
+					// 描画範囲
+					v_cols = view_cols + 1;
+					v_rows = view_rows;
+
+					// スクロール中フラグ設定
+					scroll_state = 1;
+
+				}
+
+				break;
+
+			}
+
+			break;
+
+		// スクロール中
+		case 1:
+
+			// スクロール位置を更新
+			scroll_pos++;
+
+			// スクロール位置がチップサイズに達したら、スクロール終了
+			if ((((scroll_dir == KeyStatusHolder.KEYFLAG_UP) || (scroll_dir == KeyStatusHolder.KEYFLAG_DOWN)) && scroll_pos == chip_height) || (((scroll_dir == KeyStatusHolder.KEYFLAG_LEFT) || (scroll_dir == KeyStatusHolder.KEYFLAG_RIGHT)) && scroll_pos == chip_width)) {
+
+				// 現在位置更新
+				x += dx;
+				y += dy;
+
+				dx = 0;
+				dy = 0;
+
+				sx = 0;
+				sy = 0;
+
+				v_x = x;
+				v_y = y;
+
+				v_cols = view_cols;
+				v_rows = view_rows;
+
+				scroll_pos = 0;
+				scroll_state = 0;
+
+				// マップ上の現在位置を表示
+				posLabel.innerHTML = '(' + x + ',' + y + ')';
+
+				// 移動先が(1, 0)ならメッセージ表示ウインドウテスト
+				if (x == 1 && y == 0) {
+					test_status = TESTSTATE_MESSAGE_SHOW;
+				}
+
+				// 移動先が(3, 0)なら選択ダイアログテスト
+				if (x == 3 && y == 0) {
+					test_status = TESTSTATE_SELECT_SHOW;
+				}
+
+			}
+
+			break;
+
+		}
+
+		break;
+
+	// メッセージウインドウ表示開始
+	case TESTSTATE_MESSAGE_SHOW:
+
+		mes.setText("テスト文字列<:br>あいうえおかきくけこ<:page>page2", viewContext);
+
+		mes.show();
+
+		test_status = TESTSTATE_MESSAGE_PROCESS;
+
+		break;
+
+	// メッセージウインドウ表示中
+	case TESTSTATE_MESSAGE_PROCESS:
+
+		if (mes.process(key)) {
+
+			test_status = TESTSTATE_NONE;
+
+			mes.hide();
+
+		}
+
+		break;
+
+	// 選択ダイアログ表示開始
+	case TESTSTATE_SELECT_SHOW:
+
+		select.setItems(["テスト文字列1", "テスト文字列2", "テスト文字列3"], viewContext);
+
+		select.show();
+
+		test_status = TESTSTATE_SELECT_PROCESS;
+
+		break;
+
+	// 選択ダイアログ表示中
+	case TESTSTATE_SELECT_PROCESS:
+
+		if (select.process(key)) {
+
+			test_status = TESTSTATE_NONE;
+
+			select.hide();
+
+		}
+
+		break;
+
+	}
+
+	draw();
+
+	setTimeout("process()", 30);
+
+}
+
+// 描画関数
+function draw() {
+
+	// 表示Canvas上にマップの地形を描画
+	for (i = 0;i < v_rows;i++) {
+		for (j= 0;j < v_cols;j++) {
+			viewContext.drawImage(chipList[map[(v_x + j)  + (v_y + i) * map_cols]], sx + (-dx * scroll_pos) + j * chip_width, sy + (-dy * scroll_pos) + i * chip_height);
+		}
+	}
+
+	// メッセージウインドウ描画処理
+	mes.draw(viewContext);
+
+	// 選択ダイアログ描画処理
+	select.draw(viewContext);
+
+}
+
+</script>
+
+</body>
+</html>

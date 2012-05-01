@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+
+<canvas id="viewCanvasElement" width="200" height="200" style="background: #0000ff;"></canvas>
+
+<script>
+
+// 表示Canvasの描画用context取得
+var viewContext = document.getElementById("viewCanvasElement").getContext("2d");
+
+var str = "表示テスト文字列。ウインドウ上に折り返しながら描画します。";
+
+var win_width = 120;
+var win_height = 120;
+
+var x = 40;
+var y = 40;
+
+// 選択肢文字列を描画するフォント
+var font = "14px monospace";
+
+// 選択肢一つの高さ
+line_height = 18;
+
+// ウインドウ領域全体を白でクリア
+viewContext.fillStyle = '#000000';
+viewContext.fillRect(x, y, win_width, win_height);
+
+// テキスト描画設定
+viewContext.fillStyle = '#ffffff';
+viewContext.textBaseline = 'top';
+
+var draw_width = 0;
+
+var line = '';
+var lineList = new Array();
+
+var i = 0;
+
+// ウインドウの横幅に合わせて各行のテキスト作成
+for (i = 0;i < str.length;i++) {
+
+	// 現在行に現在位置の文字を追加し描画幅を取得
+	draw_width = viewContext.measureText(line + str.charAt(i)).width;
+
+	// 現在行の描画幅がウインドウ幅より大きくなったら行配列に移動
+	if (draw_width > win_width) {
+
+		// 現在行の文字列を行配列に
+		lineList.push(line);
+
+		// 現在行をクリアし新しい行の処理を開始
+		line = '';
+
+	}
+
+	// 現在行に現在位置の文字を追加
+	line += str.charAt(i);
+
+	// 最後の文字なら、現在行を行配列に追加
+	if (i == str.length - 1) {
+		lineList.push(line);
+	}
+
+}
+
+// 行配列の文字列を描画
+for (i = 0;i < lineList.length;i++) {
+	viewContext.fillText(lineList[i], x, y + i * line_height);
+}
+
+</script>
